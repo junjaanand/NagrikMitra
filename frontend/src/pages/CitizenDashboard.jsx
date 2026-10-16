@@ -21,6 +21,11 @@ import {
   MessageSquare,
   Camera,
   Check,
+  BarChart3,
+  PieChart as PieIcon,
+  ArrowRight,
+  PlusCircle,
+  Building2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useProfile } from '../context/ProfileContext';
@@ -31,6 +36,11 @@ import SchemeDetailModal from '../components/dashboard/SchemeDetailModal';
 import EditProfileModal from '../components/dashboard/EditProfileModal';
 import QuickChatModal from '../components/landing/QuickChatModal';
 import QuickScanModal from '../components/landing/QuickScanModal';
+import AnalyticsDashboard from '../components/analytics/AnalyticsDashboard';
+import ComparisonDock from '../components/dashboard/ComparisonDock';
+import ComparisonMatrixModal from '../components/dashboard/ComparisonMatrixModal';
+import AccessibilityBar from '../components/common/AccessibilityBar';
+import AddSchemeModal from '../components/dashboard/AddSchemeModal';
 
 const CATEGORIES = [
   'All',
@@ -63,7 +73,7 @@ const STATES = [
   'Puducherry',
 ];
 
-export default function CitizenDashboard({ onBackToLanding }) {
+export default function CitizenDashboard({ onBackToLanding, onGoToAdmin }) {
   const { user, signOut } = useAuth();
   const { profile, updateProfile, applyOcrData } = useProfile();
 
@@ -83,6 +93,7 @@ export default function CitizenDashboard({ onBackToLanding }) {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [selectedMode, setSelectedMode] = useState('all');
 
   // Bookmarks State (Saved in LocalStorage)
   const [bookmarkedSlugs, setBookmarkedSlugs] = useState(() => {
@@ -100,7 +111,38 @@ export default function CitizenDashboard({ onBackToLanding }) {
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
+  const [addSchemeOpen, setAddSchemeOpen] = useState(false);
   const [notification, setNotification] = useState(null);
+
+  // Comparison State (Day 10)
+  const [comparedSchemes, setComparedSchemes] = useState([]);
+  const [matrixOpen, setMatrixOpen] = useState(false);
+
+  const toggleCompare = (scheme) => {
+    setComparedSchemes((prev) => {
+      const exists = prev.some((s) => s.slug === scheme.slug);
+      if (exists) {
+        showNotification(`Removed "${scheme.name.substring(0, 25)}..." from comparison`);
+        return prev.filter((s) => s.slug !== scheme.slug);
+      } else {
+        if (prev.length >= 4) {
+          showNotification('Maximum 4 schemes can be compared at once.');
+          return prev;
+        }
+        showNotification(`Added "${scheme.name.substring(0, 25)}..." to comparison queue`);
+        return [...prev, scheme];
+      }
+    });
+  };
+
+  const removeFromCompare = (slug) => {
+    setComparedSchemes((prev) => prev.filter((s) => s.slug !== slug));
+  };
+
+  const clearCompared = () => {
+    setComparedSchemes([]);
+    showNotification('Cleared comparison queue');
+  };
 
   // Citizen Name
   const citizenName =
@@ -169,6 +211,7 @@ export default function CitizenDashboard({ onBackToLanding }) {
         gender: filterWomen ? 'female' : undefined,
         bpl: filterBPL ? true : undefined,
         disability: filterDisability ? true : undefined,
+        mode: selectedMode !== 'all' ? selectedMode : undefined,
       };
       const data = await getSchemes(params);
       setSchemes(data.items);
@@ -185,7 +228,7 @@ export default function CitizenDashboard({ onBackToLanding }) {
     if (activeTab === 'explorer') {
       fetchExplorerSchemes();
     }
-  }, [activeTab, page, selectedCategory, selectedState, filterWomen, filterBPL, filterDisability]);
+  }, [activeTab, page, selectedCategory, selectedState, filterWomen, filterBPL, filterDisability, selectedMode]);
 
   // Handle Search submit
   const handleSearch = (e) => {
@@ -246,7 +289,20 @@ export default function CitizenDashboard({ onBackToLanding }) {
           </div>
 
           {/* User actions */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <AccessibilityBar />
+
+            {/* Admin Switcher for VLE / Admin users */}
+            {(user?.user_metadata?.rbac_role === 'admin' || user?.user_metadata?.role?.includes('Admin') || user?.user_metadata?.role?.includes('VLE')) && onGoToAdmin && (
+              <button
+                onClick={onGoToAdmin}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition-colors cursor-pointer"
+              >
+                <Building2 className="w-3.5 h-3.5 text-amber-400" />
+                <span>Admin Portal</span>
+              </button>
+            )}
+
             <button
               onClick={() => setActiveTab('saved')}
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 cursor-pointer transition-colors"
@@ -352,8 +408,8 @@ export default function CitizenDashboard({ onBackToLanding }) {
           </div>
         </div>
 
-        {/* QUICK ACTIONS GRID (Day 7 Requirement) */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {/* QUICK ACTIONS GRID (Day 7 & Day 8) */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
           <button
             onClick={() => setActiveTab('wizard')}
             className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
@@ -368,6 +424,23 @@ export default function CitizenDashboard({ onBackToLanding }) {
             <div>
               <span className="block text-xs font-bold text-slate-900">Eligibility Wizard</span>
               <span className="block text-[10px] text-slate-500">4-Step Rule Engine</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+              activeTab === 'analytics'
+                ? 'bg-emerald-50 border-emerald-300 shadow-sm'
+                : 'bg-white border-slate-200/80 hover:border-slate-300 hover:shadow-xs'
+            }`}
+          >
+            <div className="w-8 h-8 rounded-xl bg-purple-100 flex items-center justify-center text-purple-700 mb-2">
+              <BarChart3 className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="block text-xs font-bold text-slate-900">Visual Analytics</span>
+              <span className="block text-[10px] text-slate-500">Recharts SVG Hub</span>
             </div>
           </button>
 
@@ -504,10 +577,10 @@ export default function CitizenDashboard({ onBackToLanding }) {
         </div>
 
         {/* Mode Navigation Tabs */}
-        <div className="flex border-b border-slate-200 gap-8">
+        <div className="flex border-b border-slate-200 gap-6 sm:gap-8 overflow-x-auto scrollbar-none">
           <button
             onClick={() => setActiveTab('wizard')}
-            className={`pb-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-colors cursor-pointer ${
+            className={`pb-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'wizard'
                 ? 'border-emerald-600 text-emerald-700'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -518,8 +591,23 @@ export default function CitizenDashboard({ onBackToLanding }) {
           </button>
 
           <button
+            onClick={() => setActiveTab('analytics')}
+            className={`pb-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap ${
+              activeTab === 'analytics'
+                ? 'border-emerald-600 text-emerald-700'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4 text-purple-600" />
+            <span>Visual Analytics & Insights</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-bold border border-purple-200">
+              Recharts SVG
+            </span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('explorer')}
-            className={`pb-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-colors cursor-pointer ${
+            className={`pb-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'explorer'
                 ? 'border-emerald-600 text-emerald-700'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -531,7 +619,7 @@ export default function CitizenDashboard({ onBackToLanding }) {
 
           <button
             onClick={() => setActiveTab('saved')}
-            className={`pb-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-colors cursor-pointer ${
+            className={`pb-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'saved'
                 ? 'border-emerald-600 text-emerald-700'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -550,6 +638,37 @@ export default function CitizenDashboard({ onBackToLanding }) {
             {/* If matched, show results */}
             {matchedResults && (
               <div className="space-y-6 pt-4">
+                
+                {/* Visual Demographic Match Summary Banner (Day 8 Feature) */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-purple-900 to-indigo-950 text-white shadow-md border border-purple-800/80">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-purple-300 bg-purple-500/20 px-2 py-0.5 rounded border border-purple-400/30 flex items-center gap-1">
+                        <BarChart3 className="w-3 h-3" />
+                        Recharts Demographic Intelligence
+                      </span>
+                      <span className="text-xs text-purple-200 font-semibold">
+                        {matchedResults.total_matched} Schemes Across {Object.keys(matchedResults.category_breakdown || {}).length} Sectors
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      {Object.entries(matchedResults.category_breakdown || {}).slice(0, 5).map(([cat, cnt]) => (
+                        <span key={cat} className="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-white/10 text-white border border-white/10">
+                          {cat.split(',')[0]}: {cnt}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setActiveTab('analytics')}
+                    className="px-4 py-2 rounded-xl bg-white hover:bg-purple-50 text-purple-950 text-xs font-black transition-all shadow-sm cursor-pointer flex items-center gap-2 shrink-0 self-start sm:self-center"
+                  >
+                    <span>View Interactive Visual Analytics</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-xl font-extrabold text-slate-900">
@@ -562,13 +681,15 @@ export default function CitizenDashboard({ onBackToLanding }) {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {matchedResults.matched_schemes.map((scheme) => (
+                  {(Array.isArray(matchedResults) ? matchedResults : (matchedResults?.matched_schemes || [])).map((scheme) => (
                     <SchemeCard
                       key={scheme.slug}
                       scheme={scheme}
                       isBookmarked={bookmarkedSlugs.includes(scheme.slug)}
                       onToggleBookmark={toggleBookmark}
                       onViewDetails={(s) => setSelectedScheme(s)}
+                      isCompared={comparedSchemes.some((c) => c.slug === scheme.slug)}
+                      onToggleCompare={toggleCompare}
                     />
                   ))}
                 </div>
@@ -577,7 +698,24 @@ export default function CitizenDashboard({ onBackToLanding }) {
           </div>
         )}
 
-        {/* TAB 2: SCHEME EXPLORER */}
+        {/* TAB 2: VISUAL ANALYTICS & INSIGHTS (Day 8 Requirement) */}
+        {activeTab === 'analytics' && (
+          <AnalyticsDashboard
+            matchedResults={matchedResults}
+            userProfile={profile}
+            onDrilldownToExplorer={({ category, state }) => {
+              if (category && category !== 'All') setSelectedCategory(category);
+              if (state && state !== 'All') setSelectedState(state);
+              setPage(1);
+              setActiveTab('explorer');
+            }}
+            onViewSchemeDetails={(s) => setSelectedScheme(s)}
+            bookmarkedSlugs={bookmarkedSlugs}
+            onToggleBookmark={toggleBookmark}
+          />
+        )}
+
+        {/* TAB 3: SCHEME EXPLORER */}
         {activeTab === 'explorer' && (
           <div className="space-y-6">
             
@@ -599,6 +737,15 @@ export default function CitizenDashboard({ onBackToLanding }) {
                   className="px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors cursor-pointer"
                 >
                   Search
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddSchemeOpen(true)}
+                  className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1.5 shadow-sm shadow-blue-500/20 whitespace-nowrap"
+                  title="CSC / Admin Scheme Ingestion Portal"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  <span>Ingest Scheme</span>
                 </button>
               </form>
 
@@ -668,6 +815,35 @@ export default function CitizenDashboard({ onBackToLanding }) {
                 </span>
               </div>
 
+              {/* Application Mode Filter Pills */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                <span className="text-xs font-semibold text-slate-500 mr-1 flex items-center gap-1">
+                  <span>Application Mode:</span>
+                </span>
+                {[
+                  { id: 'all', label: 'All Modes' },
+                  { id: 'online', label: '🌐 Online Direct' },
+                  { id: 'hybrid', label: '🔄 CSC Hybrid' },
+                  { id: 'offline', label: '🏢 In-Person / Physical' },
+                ].map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedMode(m.id);
+                      setPage(1);
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                      selectedMode === m.id
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+
               {/* Category Pills */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
                 {CATEGORIES.map((cat) => (
@@ -704,6 +880,8 @@ export default function CitizenDashboard({ onBackToLanding }) {
                     isBookmarked={bookmarkedSlugs.includes(scheme.slug)}
                     onToggleBookmark={toggleBookmark}
                     onViewDetails={(s) => setSelectedScheme(s)}
+                    isCompared={comparedSchemes.some((c) => c.slug === scheme.slug)}
+                    onToggleCompare={toggleCompare}
                   />
                 ))}
               </div>
@@ -762,6 +940,8 @@ export default function CitizenDashboard({ onBackToLanding }) {
                     isBookmarked={true}
                     onToggleBookmark={toggleBookmark}
                     onViewDetails={(s) => setSelectedScheme(s)}
+                    isCompared={comparedSchemes.some((c) => c.slug === scheme.slug)}
+                    onToggleCompare={toggleCompare}
                   />
                 ))}
               </div>
@@ -815,6 +995,35 @@ export default function CitizenDashboard({ onBackToLanding }) {
         onClose={() => setSelectedScheme(null)}
         isBookmarked={selectedScheme ? bookmarkedSlugs.includes(selectedScheme.slug) : false}
         onToggleBookmark={toggleBookmark}
+      />
+
+      {/* Persistent Floating Comparison Dock (Day 10) */}
+      <ComparisonDock
+        comparedSchemes={comparedSchemes}
+        onRemoveScheme={removeFromCompare}
+        onClearAll={clearCompared}
+        onOpenMatrix={() => setMatrixOpen(true)}
+      />
+
+      {/* Multi-Scheme Comparison Matrix Modal (Day 10) */}
+      <ComparisonMatrixModal
+        isOpen={matrixOpen}
+        onClose={() => setMatrixOpen(false)}
+        schemes={comparedSchemes}
+        onRemoveScheme={removeFromCompare}
+        onToggleBookmark={toggleBookmark}
+        bookmarkedSlugs={bookmarkedSlugs}
+      />
+
+      {/* Day 11: Dynamic Scheme Ingestion & OGD Sync Modal */}
+      <AddSchemeModal
+        isOpen={addSchemeOpen}
+        onClose={() => setAddSchemeOpen(false)}
+        onSchemeAdded={(newScheme) => {
+          showNotification(newScheme ? `Ingested "${newScheme.name}"` : 'Gazette synchronization complete');
+          fetchExplorerSchemes();
+          if (profile) runInstantMatch(profile);
+        }}
       />
 
     </div>

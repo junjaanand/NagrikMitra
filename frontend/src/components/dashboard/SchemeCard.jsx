@@ -1,11 +1,20 @@
 import React from 'react';
-import { Bookmark, BookmarkCheck, ExternalLink, ArrowRight, ShieldCheck, Check } from 'lucide-react';
+import { Bookmark, BookmarkCheck, ExternalLink, ArrowRight, ShieldCheck, Check, GitCompare } from 'lucide-react';
 
-export default function SchemeCard({ scheme, isBookmarked, onToggleBookmark, onViewDetails }) {
+export default function SchemeCard({
+  scheme,
+  isBookmarked,
+  onToggleBookmark,
+  onViewDetails,
+  isCompared = false,
+  onToggleCompare,
+}) {
   const matchScore = scheme.relevance_score || 100;
 
   return (
-    <div className="rounded-2xl bg-white border border-slate-200/90 hover:border-emerald-400 p-5 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
+    <div className={`rounded-2xl bg-white border p-5 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group ${
+      isCompared ? 'border-amber-400 ring-2 ring-amber-400/20' : 'border-slate-200/90 hover:border-emerald-400'
+    }`}>
       <div>
         {/* Top Badges */}
         <div className="flex items-start justify-between gap-3 mb-3">
@@ -25,24 +34,68 @@ export default function SchemeCard({ scheme, isBookmarked, onToggleBookmark, onV
                 {scheme.category.split(',')[0].trim()}
               </span>
             )}
+
+            {/* Application Mode Badge (Online / Offline / Hybrid) */}
+            {scheme.application_mode === 'offline' ? (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200/80 flex items-center gap-1">
+                <span>🏢</span> In-Person
+              </span>
+            ) : scheme.application_mode === 'hybrid' ? (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-sky-50 text-sky-800 border border-sky-200/80 flex items-center gap-1">
+                <span>🔄</span> CSC Hybrid
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200/80 flex items-center gap-1">
+                <span>🌐</span> Online
+              </span>
+            )}
+
+            {/* Lifecycle Status Pill (if seasonal or merged) */}
+            {scheme.lifecycle_status === 'seasonal_window' && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                🗓️ Seasonal
+              </span>
+            )}
+            {scheme.lifecycle_status === 'superseded_merged' && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200">
+                ⚠️ Merged
+              </span>
+            )}
           </div>
 
-          {/* Bookmark Button */}
-          <button
-            onClick={() => onToggleBookmark(scheme)}
-            className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
-              isBookmarked
-                ? 'bg-amber-50 border-amber-300 text-amber-600'
-                : 'bg-white border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50'
-            }`}
-            title={isBookmarked ? 'Remove from Saved' : 'Save Scheme'}
-          >
-            {isBookmarked ? (
-              <BookmarkCheck className="w-4 h-4 fill-amber-500" />
-            ) : (
-              <Bookmark className="w-4 h-4" />
+          {/* Action Buttons: Compare + Bookmark */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {onToggleCompare && (
+              <button
+                onClick={() => onToggleCompare(scheme)}
+                className={`px-2 py-1 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer ${
+                  isCompared
+                    ? 'bg-amber-500 text-slate-950 border-amber-500 font-black shadow-xs'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+                title={isCompared ? 'Remove from Comparison Queue' : 'Add to Comparison Queue'}
+              >
+                <GitCompare className="w-3 h-3" />
+                <span>{isCompared ? 'Selected' : 'Compare'}</span>
+              </button>
             )}
-          </button>
+
+            <button
+              onClick={() => onToggleBookmark(scheme)}
+              className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                isBookmarked
+                  ? 'bg-amber-50 border-amber-300 text-amber-600'
+                  : 'bg-white border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50'
+              }`}
+              title={isBookmarked ? 'Remove from Saved' : 'Save Scheme'}
+            >
+              {isBookmarked ? (
+                <BookmarkCheck className="w-4 h-4 fill-amber-500" />
+              ) : (
+                <Bookmark className="w-4 h-4" />
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Title */}

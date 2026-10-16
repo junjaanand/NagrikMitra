@@ -86,16 +86,18 @@ def test_chat_api_endpoints():
     assert status_data["fallback_hierarchy"][2]["provider"] == "Local Grounded Synthesizer"
 
     # 2. Slot Extraction Endpoint
-    r_slot = client.post("/api/chat/extract-slots", json={"text": "I live in Gujarat and I am a 30 year old BPL card holder"})
+    auth_headers = {"Authorization": "Bearer demo-session-farmer"}
+    r_slot = client.post("/api/chat/extract-slots", headers=auth_headers, json={"text": "I live in Gujarat and I am a 30 year old BPL card holder"})
     assert r_slot.status_code == 200
-    slot_data = r_slot.json()["extracted_slots"]
+    res_json = r_slot.json()
+    slot_data = res_json.get("slots") or res_json.get("extracted_slots")
     print(f"POST /api/chat/extract-slots -> {slot_data}")
     assert slot_data.get("state") == "Gujarat"
     assert slot_data.get("age") == 30
     assert slot_data.get("is_bpl") is True
 
     # 3. Chat Message Endpoint (Hindi)
-    r_chat = client.post("/api/chat/message", json={
+    r_chat = client.post("/api/chat/message", headers=auth_headers, json={
         "message": "मुझे छात्रवृत्ति योजना की जानकारी दो",
         "history": []
     })

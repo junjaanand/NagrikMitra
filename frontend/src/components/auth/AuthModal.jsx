@@ -3,23 +3,36 @@ import { X, Mail, Lock, User, ArrowRight, ShieldCheck, Sparkles, AlertCircle, Lo
 import { useAuth } from '../../context/AuthContext';
 
 export default function AuthModal({ isOpen, onClose }) {
-  const { isConfigured, signInWithGoogle, signInWithEmail, signUpWithEmail, demoLogin } = useAuth();
+  const { 
+    isConfigured, 
+    signInWithGoogle, 
+    signInWithEmail, 
+    signUpWithEmail, 
+    demoLogin,
+    authModalOpen,
+    authModalConfig,
+    closeAuthModal
+  } = useAuth();
   
+  const showModal = isOpen !== undefined ? isOpen : authModalOpen;
+  const handleClose = onClose || closeAuthModal;
+
   const [tab, setTab] = useState('signin'); // 'signin' or 'signup'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [showDemoSandbox, setShowDemoSandbox] = useState(false);
 
-  if (!isOpen) return null;
+  if (!showModal) return null;
 
   const handleGoogleLogin = async () => {
     setError(null);
     setLoading(true);
     try {
       await signInWithGoogle();
-      onClose();
+      handleClose();
     } catch (err) {
       setError(err.message || 'Google sign-in failed');
     } finally {
@@ -37,7 +50,7 @@ export default function AuthModal({ isOpen, onClose }) {
       } else {
         await signUpWithEmail(email, password, fullName);
       }
-      onClose();
+      handleClose();
     } catch (err) {
       setError(err.message || 'Authentication failed');
     } finally {
@@ -47,13 +60,24 @@ export default function AuthModal({ isOpen, onClose }) {
 
   const handleDemoLogin = (role) => {
     demoLogin(role);
-    onClose();
+    handleClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
         
+        {/* Contextual Interception Banner */}
+        {authModalConfig?.message && (
+          <div className="px-6 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white flex items-start gap-2.5 text-xs">
+            <Sparkles className="w-4 h-4 text-blue-200 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold block text-sm tracking-tight">{authModalConfig.title || 'Tool Authentication Required'}</span>
+              <span className="text-blue-100/90 leading-tight block mt-0.5">{authModalConfig.message}</span>
+            </div>
+          </div>
+        )}
+
         {/* Modal Header */}
         <div className="p-6 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -70,7 +94,7 @@ export default function AuthModal({ isOpen, onClose }) {
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -230,40 +254,67 @@ export default function AuthModal({ isOpen, onClose }) {
             </button>
           </form>
 
-          {/* Instant Demo Citizen Profiles Box */}
-          <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/70 space-y-2.5">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
-              <Sparkles className="w-3.5 h-3.5 text-amber-700" />
-              <span>Instant Demo Citizen Login (1-Click)</span>
-            </div>
-            <p className="text-[11px] text-amber-800 leading-snug">
-              For testing and viva demonstrations without requiring an external email:
-            </p>
-            <div className="grid grid-cols-3 gap-2 pt-1">
-              <button
-                onClick={() => handleDemoLogin('farmer')}
-                className="p-2 rounded-lg bg-white border border-amber-200 hover:bg-amber-100/60 text-left transition-colors cursor-pointer"
-              >
-                <span className="block text-[11px] font-bold text-slate-800">🌾 Farmer</span>
-                <span className="block text-[9px] text-slate-500">UP • BPL</span>
-              </button>
+          {/* Collapsible Evaluator / Demo Sandbox Drawer (Hidden by default) */}
+          <div className="pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setShowDemoSandbox(!showDemoSandbox)}
+              className="w-full flex items-center justify-between text-[11px] font-medium text-slate-400 hover:text-slate-600 transition-colors py-1 cursor-pointer"
+            >
+              <span className="flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-slate-400" />
+                <span>Developer & Evaluator Sandbox Profiles</span>
+              </span>
+              <span className="text-[10px] text-slate-400 font-bold bg-slate-100 px-2 py-0.5 rounded">
+                {showDemoSandbox ? '▲ Hide Sandbox' : '▼ Expand (Dev Mode)'}
+              </span>
+            </button>
 
-              <button
-                onClick={() => handleDemoLogin('student')}
-                className="p-2 rounded-lg bg-white border border-amber-200 hover:bg-amber-100/60 text-left transition-colors cursor-pointer"
-              >
-                <span className="block text-[11px] font-bold text-slate-800">🎓 Student</span>
-                <span className="block text-[9px] text-slate-500">MH • SC</span>
-              </button>
+            {showDemoSandbox && (
+              <div className="mt-2.5 p-3 rounded-2xl bg-amber-50/70 border border-amber-200/80 space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-bold text-amber-900">
+                  <span>1-Click Instant Evaluator Personas:</span>
+                  <span className="text-[9px] text-amber-700 font-medium">Auto-Resumes Action</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => handleDemoLogin('farmer')}
+                    className="p-2 rounded-lg bg-white border border-amber-200 hover:bg-amber-100/60 text-left transition-colors cursor-pointer"
+                  >
+                    <span className="block text-[11px] font-bold text-slate-800">🌾 Farmer</span>
+                    <span className="block text-[9px] text-slate-500">UP • BPL</span>
+                  </button>
 
-              <button
-                onClick={() => handleDemoLogin('women')}
-                className="p-2 rounded-lg bg-white border border-amber-200 hover:bg-amber-100/60 text-left transition-colors cursor-pointer"
-              >
-                <span className="block text-[11px] font-bold text-slate-800">👩 SHG Group</span>
-                <span className="block text-[9px] text-slate-500">GJ • Rural</span>
-              </button>
-            </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDemoLogin('student')}
+                    className="p-2 rounded-lg bg-white border border-amber-200 hover:bg-amber-100/60 text-left transition-colors cursor-pointer"
+                  >
+                    <span className="block text-[11px] font-bold text-slate-800">🎓 Student</span>
+                    <span className="block text-[9px] text-slate-500">MH • SC</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDemoLogin('women')}
+                    className="p-2 rounded-lg bg-white border border-amber-200 hover:bg-amber-100/60 text-left transition-colors cursor-pointer"
+                  >
+                    <span className="block text-[11px] font-bold text-slate-800">👩 SHG Group</span>
+                    <span className="block text-[9px] text-slate-500">GJ • Rural</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDemoLogin('vle')}
+                    className="p-2 rounded-lg bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 text-left transition-colors cursor-pointer shadow-xs"
+                  >
+                    <span className="block text-[11px] font-bold text-emerald-900">🏛️ CSC VLE</span>
+                    <span className="block text-[9px] text-emerald-700">Admin • Ingestion</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
         </div>

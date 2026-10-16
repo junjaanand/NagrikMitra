@@ -25,6 +25,8 @@ class MatchedSchemeResult(BaseModel):
     relevance_score: float = 1.0
     match_reasons: List[str] = []
     estimated_benefit_amount: Optional[str] = None
+    application_mode: Optional[str] = "online"
+    lifecycle_status: Optional[str] = "active"
 
 class EligibilityMatchResponse(BaseModel):
     total_matched: int

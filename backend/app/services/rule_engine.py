@@ -4,6 +4,7 @@ import time
 from typing import List, Dict, Any, Optional, Tuple
 from app.database.db import get_db
 from app.models.user import UserProfileInput, MatchedSchemeResult, EligibilityMatchResponse
+from app.services.link_resolver import classify_application_mode, classify_lifecycle_status
 
 # Currency and financial amount extraction pattern
 CURRENCY_REGEX = re.compile(
@@ -185,19 +186,29 @@ def match_eligible_schemes(profile: UserProfileInput, limit: int = 100) -> Eligi
 
         gender_placeholders = ",".join("?" for _ in g_filter)
         
+        st = (profile.state or "").strip()
+        state_is_universal = st.lower() in ("all", "pan-india", "central", "")
+
+        if state_is_universal:
+            state_clause = "(state = 'Central' OR eligibility_state LIKE '%All%')"
+            state_params = []
+        else:
+            state_clause = "(state = 'Central' OR LOWER(state) = LOWER(?) OR eligibility_state LIKE '%All%' OR eligibility_state LIKE ?)"
+            state_params = [st, f"%{st}%"]
+
         query = f"""
             SELECT 
                 slug, name, state, category, benefits, official_url, apply_url, 
                 documents_required, eligibility_age_min, eligibility_age_max, 
                 eligibility_gender, eligibility_caste, eligibility_income_max, 
                 eligibility_residence, eligibility_state, eligibility_disability, 
-                eligibility_bpl, description
+                eligibility_bpl, description, application_process, eligibility_text
             FROM schemes
-            WHERE (state = 'Central' OR LOWER(state) = LOWER(?) OR eligibility_state LIKE '%All%')
+            WHERE {state_clause}
               AND eligibility_gender IN ({gender_placeholders})
         """
         
-        params = [profile.state] + list(g_filter)
+        params = state_params + list(g_filter)
         cursor.execute(query, params)
         rows = cursor.fetchall()
 
@@ -206,7 +217,7 @@ def match_eligible_schemes(profile: UserProfileInput, limit: int = 100) -> Eligi
         "documents_required", "eligibility_age_min", "eligibility_age_max",
         "eligibility_gender", "eligibility_caste", "eligibility_income_max",
         "eligibility_residence", "eligibility_state", "eligibility_disability",
-        "eligibility_bpl", "description"
+        "eligibility_bpl", "description", "application_process", "eligibility_text"
     ]
 
     matched_results: List[MatchedSchemeResult] = []
@@ -218,6 +229,8 @@ def match_eligible_schemes(profile: UserProfileInput, limit: int = 100) -> Eligi
         
         if is_eligible:
             benefit_amount = extract_benefit_amount(scheme_dict.get("benefits"))
+            app_mode = classify_application_mode(scheme_dict.get("application_process"), scheme_dict.get("apply_url"))
+            status = classify_lifecycle_status(scheme_dict.get("name", ""), scheme_dict.get("description"), scheme_dict.get("eligibility_text"))
             
             result = MatchedSchemeResult(
                 slug=scheme_dict["slug"],
@@ -230,7 +243,9 @@ def match_eligible_schemes(profile: UserProfileInput, limit: int = 100) -> Eligi
                 documents_required=scheme_dict["documents_required"],
                 relevance_score=round(score, 1),
                 match_reasons=reasons,
-                estimated_benefit_amount=benefit_amount
+                estimated_benefit_amount=benefit_amount,
+                application_mode=app_mode,
+                lifecycle_status=status
             )
             matched_results.append(result)
             

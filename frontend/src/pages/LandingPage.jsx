@@ -14,32 +14,66 @@ import QuickScanModal from '../components/landing/QuickScanModal';
 import AuthModal from '../components/auth/AuthModal';
 import { MessageSquare, LayoutDashboard } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import useRequireAuth from '../hooks/useRequireAuth';
 
-export default function LandingPage({ onEnterDashboard, onExploreFeature }) {
+export default function LandingPage({ onEnterDashboard, onEnterAdmin, onExploreFeature }) {
   const { user } = useAuth();
+  const { withAuth } = useRequireAuth();
   const [eligibilityOpen, setEligibilityOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [scannedProfile, setScannedProfile] = useState(null);
 
+  const handleOpenDashboard = () => {
+    withAuth(onEnterDashboard, {
+      title: 'Citizen Dashboard Access',
+      message: 'Sign in with your Google account or credentials to view your personalized schemes, bookmarks, and readiness checklist.',
+    });
+  };
+
   const handleApplyScannedProfile = (profile) => {
     setScannedProfile(profile);
     setEligibilityOpen(true);
   };
 
+  const handleCheckEligibility = () => {
+    withAuth(onEnterDashboard || (() => setEligibilityOpen(true)), {
+      title: 'Eligibility Evaluation Access',
+      message: 'Sign in with Google or your citizen credentials to evaluate personalized welfare schemes.',
+    });
+  };
+
+  const handleOpenChat = () => {
+    withAuth(() => setChatOpen(true), {
+      title: 'NagrikMitra AI Assistant',
+      message: 'Sign in to speak or chat with the multilingual welfare AI.',
+    });
+  };
+
+  const handleOpenScanner = () => {
+    withAuth(() => setScanOpen(true), {
+      title: 'Identity Document Scanner',
+      message: 'Sign in to scan Aadhaar, PAN, or Ration cards.',
+    });
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between">
       {/* Top Navbar */}
-      <Navbar onOpenAuth={() => setAuthOpen(true)} onEnterDashboard={onEnterDashboard} />
+      <Navbar 
+        onOpenAuth={() => setAuthOpen(true)} 
+        onEnterDashboard={handleOpenDashboard} 
+        onEnterAdmin={onEnterAdmin} 
+      />
 
       {/* Main Page Sections */}
       <main className="flex-1">
         {/* Section 1: Hero Banner with live card snapshot */}
         <HeroSection
-          onCheckEligibility={onEnterDashboard || (() => setEligibilityOpen(true))}
-          onOpenChat={() => setChatOpen(true)}
-          onOpenScanner={() => setScanOpen(true)}
+          onCheckEligibility={handleCheckEligibility}
+          onOpenChat={handleOpenChat}
+          onOpenScanner={handleOpenScanner}
         />
 
         {/* Section 2: How It Works (3-Step Roadmap) */}
@@ -68,7 +102,7 @@ export default function LandingPage({ onEnterDashboard, onExploreFeature }) {
       <div className="fixed bottom-6 right-6 z-40 flex items-center gap-3">
         {onEnterDashboard && (
           <button
-            onClick={onEnterDashboard}
+            onClick={handleOpenDashboard}
             className="flex items-center gap-2 px-4 py-3 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xl shadow-emerald-600/25 hover:scale-105 transition-all cursor-pointer"
           >
             <LayoutDashboard className="w-4 h-4" />
@@ -77,7 +111,7 @@ export default function LandingPage({ onEnterDashboard, onExploreFeature }) {
         )}
 
         <button
-          onClick={() => setChatOpen(true)}
+          onClick={handleOpenChat}
           className="flex items-center gap-2.5 px-5 py-3 rounded-full bg-slate-900 hover:bg-emerald-700 text-white font-semibold text-sm shadow-xl shadow-slate-900/25 hover:shadow-2xl hover:scale-105 transition-all cursor-pointer group"
         >
           <span className="relative flex h-3 w-3">
@@ -111,7 +145,7 @@ export default function LandingPage({ onEnterDashboard, onExploreFeature }) {
       />
 
       <AuthModal
-        isOpen={authOpen}
+        isOpen={authOpen ? true : undefined}
         onClose={() => setAuthOpen(false)}
       />
     </div>

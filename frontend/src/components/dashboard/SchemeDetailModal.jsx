@@ -1,15 +1,41 @@
 import React, { useState, useEffect } from 'react';
-import { X, ExternalLink, Bookmark, CheckSquare, Square, Building2, FileText, CheckCircle2, ShieldAlert } from 'lucide-react';
-import { getSchemeBySlug } from '../../api/client';
+import {
+  X,
+  ExternalLink,
+  Bookmark,
+  CheckSquare,
+  Square,
+  Building2,
+  FileText,
+  CheckCircle2,
+  ShieldAlert,
+  QrCode,
+  Printer,
+  Share2,
+  Flag,
+  Loader2,
+  Globe,
+  Building,
+} from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
+import { getSchemeBySlug, resolveSchemeLink, reportBrokenLink } from '../../api/client';
+import SchemeGuidelinesView from './SchemeGuidelinesView';
 
 export default function SchemeDetailModal({ scheme, isOpen, onClose, isBookmarked, onToggleBookmark }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(false);
   const [checkedDocs, setCheckedDocs] = useState({});
+  const [showQr, setShowQr] = useState(false);
+  const [resolvingLink, setResolvingLink] = useState(false);
+  const [resolvedLink, setResolvedLink] = useState(null);
+  const [reporting, setReporting] = useState(false);
+  const [reported, setReported] = useState(false);
 
   useEffect(() => {
     if (scheme?.slug && isOpen) {
       setLoading(true);
+      setResolvedLink(null);
+      setReported(false);
       getSchemeBySlug(scheme.slug)
         .then((data) => {
           setDetail(data);
@@ -19,6 +45,34 @@ export default function SchemeDetailModal({ scheme, isOpen, onClose, isBookmarke
         .finally(() => setLoading(false));
     }
   }, [scheme, isOpen]);
+
+  const handleResolveAndOpenLink = async () => {
+    if (!current) return;
+    setResolvingLink(true);
+    try {
+      const res = await resolveSchemeLink(current.slug);
+      setResolvedLink(res);
+      window.open(res.resolved_url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      const fallbackUrl = current.apply_url || current.official_url || `https://www.myscheme.gov.in/schemes/${current.slug}`;
+      window.open(fallbackUrl, '_blank', 'noopener,noreferrer');
+    } finally {
+      setResolvingLink(false);
+    }
+  };
+
+  const handleReportLink = async () => {
+    if (!current || reported || reporting) return;
+    setReporting(true);
+    try {
+      await reportBrokenLink(current.slug, 'Citizen reported unreachable / dead link');
+      setReported(true);
+    } catch (e) {
+      setReported(true);
+    } finally {
+      setReporting(false);
+    }
+  };
 
   if (!isOpen || !scheme) return null;
 
@@ -39,12 +93,26 @@ export default function SchemeDetailModal({ scheme, isOpen, onClose, isBookmarke
   const completedDocsCount = Object.values(checkedDocs).filter(Boolean).length;
   const readinessPercent = docList.length > 0 ? Math.round((completedDocsCount / docList.length) * 100) : 100;
 
+  // Generate payload for offline CSC kiosk scanning
+  const offlinePayload = JSON.stringify({
+    app: 'NagrikMitra',
+    type: 'scheme_dossier',
+    name: current.name,
+    slug: current.slug,
+    state: current.state,
+    readiness: `${readinessPercent}%`,
+    ready_docs: Object.keys(checkedDocs).filter((k) => checkedDocs[k]),
+    pending_docs: docList.filter((d) => !checkedDocs[d]),
+    apply_url: current.apply_url || current.official_url,
+    timestamp: new Date().toISOString(),
+  });
+
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 print:p-0 print:bg-white">
+      <div className="bg-white rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 print:max-h-none print:shadow-none print:border-none">
         
         {/* Header */}
-        <div className="p-6 border-b border-slate-100 flex items-start justify-between sticky top-0 bg-white/95 backdrop-blur-md z-10">
+        <div className="p-6 border-b border-slate-100 flex items-start justify-between sticky top-0 bg-white/95 backdrop-blur-md z-10 print:hidden">
           <div className="pr-4">
             <div className="flex flex-wrap items-center gap-2 mb-1.5">
               <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
@@ -69,6 +137,24 @@ export default function SchemeDetailModal({ scheme, isOpen, onClose, isBookmarke
 
           <div className="flex items-center gap-2 shrink-0">
             <button
+              onClick={() => setShowQr((v) => !v)}
+              className={`p-2 rounded-xl border transition-colors cursor-pointer ${
+                showQr ? 'bg-amber-500 text-slate-950 border-amber-400' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+              title="Show Offline QR Code for CSC Kiosk"
+            >
+              <QrCode className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => window.print()}
+              className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+              title="Print Scheme Dossier (A4)"
+            >
+              <Printer className="w-4 h-4" />
+            </button>
+
+            <button
               onClick={() => onToggleBookmark(current)}
               className={`p-2 rounded-xl border transition-colors cursor-pointer ${
                 isBookmarked
@@ -82,149 +168,96 @@ export default function SchemeDetailModal({ scheme, isOpen, onClose, isBookmarke
 
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Content Body */}
-        <div className="p-6 space-y-6">
-          
-          {/* Benefits Box */}
-          <div className="p-5 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 space-y-2">
-            <span className="text-xs font-bold text-emerald-800 uppercase tracking-wide">
-              Official Entitlements & Financial Benefits
-            </span>
-            <div
-              className="text-sm text-emerald-950 leading-relaxed"
-              dangerouslySetInnerHTML={{ __html: current.benefits || 'Financial assistance and welfare subsidies provided.' }}
-            />
-          </div>
-
-          {/* Eligibility Matrix */}
-          <div>
-            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-3">
-              Statutory Eligibility Criteria
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">Age Bracket</span>
-                <span className="font-bold text-slate-800">
-                  {current.eligibility_age_min || current.eligibility_age_max
-                    ? `${current.eligibility_age_min || 0} - ${current.eligibility_age_max || 'No limit'} yrs`
-                    : 'Universal'}
-                </span>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">Gender</span>
-                <span className="font-bold text-slate-800 capitalize">
-                  {current.eligibility_gender || 'All Genders'}
-                </span>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">Income Ceiling</span>
-                <span className="font-bold text-slate-800">
-                  {current.eligibility_income_max
-                    ? `₹${Number(current.eligibility_income_max).toLocaleString()}`
-                    : 'No Income Cap'}
-                </span>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">Residence</span>
-                <span className="font-bold text-slate-800 capitalize">
-                  {current.eligibility_residence || 'Both Rural & Urban'}
-                </span>
-              </div>
-            </div>
-
-            {current.eligibility_text && (
-              <div
-                className="mt-3 p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-600 leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: current.eligibility_text }}
-              />
-            )}
-          </div>
-
-          {/* Interactive Document Readiness Checklist */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
-                <FileText className="w-4 h-4 text-emerald-600" />
-                <span>Document Readiness Checklist</span>
-              </h3>
-              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200/60">
-                {readinessPercent}% Ready ({completedDocsCount}/{docList.length})
+        {/* Offline QR Code Banner */}
+        {showQr && (
+          <div className="p-5 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200 flex flex-col sm:flex-row items-center justify-between gap-4 print:hidden animate-fadeIn">
+            <div className="space-y-1 text-center sm:text-left">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800 flex items-center gap-1.5 justify-center sm:justify-start">
+                <QrCode className="w-3.5 h-3.5 text-amber-600" />
+                Offline CSC Kiosk & Mobile Hand-Off Token
               </span>
+              <h4 className="text-sm font-bold text-slate-900">
+                Scan with smartphone or take to Village CSC Center
+              </h4>
+              <p className="text-xs text-slate-600">
+                Readiness score: <strong>{readinessPercent}%</strong> • {completedDocsCount}/{docList.length} required documents verified.
+              </p>
             </div>
 
-            <p className="text-xs text-slate-500 mb-3">
-              Check off the documents you have ready before visiting the Common Service Center (CSC) or applying online:
-            </p>
-
-            <div className="space-y-2">
-              {docList.map((doc, idx) => {
-                const checked = Boolean(checkedDocs[doc]);
-                return (
-                  <div
-                    key={idx}
-                    onClick={() => toggleDocCheck(doc)}
-                    className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-colors ${
-                      checked
-                        ? 'bg-emerald-50/60 border-emerald-300 text-emerald-900 font-semibold'
-                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span className="text-xs">{doc}</span>
-                    {checked ? (
-                      <CheckSquare className="w-4 h-4 text-emerald-600 shrink-0" />
-                    ) : (
-                      <Square className="w-4 h-4 text-slate-400 shrink-0" />
-                    )}
-                  </div>
-                );
-              })}
+            <div className="p-2 bg-white rounded-2xl shadow-md border border-amber-200 shrink-0">
+              <QRCodeSVG value={offlinePayload} size={105} level="M" />
             </div>
           </div>
+        )}
 
-          {/* Application Process */}
-          {current.application_process && (
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-2">
-                Step-by-Step Application Procedure
-              </h3>
-              <div
-                className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: current.application_process }}
-              />
-            </div>
-          )}
-
+        {/* Content Body: Highly Structured Scheme Guidelines & Action Plan */}
+        <div className="p-6">
+          <SchemeGuidelinesView
+            scheme={current}
+            checkedDocs={checkedDocs}
+            onToggleDoc={toggleDocCheck}
+          />
         </div>
 
         {/* Footer Action Links */}
-        <div className="p-6 border-t border-slate-100 flex items-center justify-between bg-slate-50">
-          <span className="text-xs text-slate-500">
-            Official government scheme record from Digital India
-          </span>
-
-          {current.apply_url || current.official_url ? (
-            <a
-              href={current.apply_url || current.official_url}
-              target="_blank"
-              rel="noreferrer"
-              className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-2 shadow-md shadow-emerald-600/20 transition-all"
+        <div className="p-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 print:hidden">
+          <div className="flex items-center gap-3">
+            {/* Citizen Report Broken Link Button */}
+            <button
+              onClick={handleReportLink}
+              disabled={reported || reporting}
+              className={`px-3 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                reported
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-bold'
+                  : 'bg-white border-slate-200 text-slate-500 hover:text-rose-600 hover:border-rose-300'
+              }`}
+              title="Report dead, broken, or unreachable link"
             >
-              <span>Open Official Application Portal</span>
-              <ExternalLink className="w-4 h-4" />
-            </a>
-          ) : (
-            <span className="text-xs font-medium text-slate-500">Apply at nearest CSC / Panchayat office</span>
-          )}
+              <Flag className="w-3.5 h-3.5" />
+              <span>{reported ? '✓ Link Flagged for Verification' : 'Report Broken Link'}</span>
+            </button>
+
+            {resolvedLink && (
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md border ${
+                resolvedLink.status === 'auto_healed'
+                  ? 'bg-amber-50 text-amber-800 border-amber-200'
+                  : resolvedLink.status === 'verified'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : 'bg-blue-50 text-blue-800 border-blue-200'
+              }`}>
+                {resolvedLink.status === 'auto_healed' ? '⚡ Auto-Healed Link' : resolvedLink.status === 'verified' ? '✓ Verified Live' : '🏛️ National Mirror'}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <button
+              onClick={handleResolveAndOpenLink}
+              disabled={resolvingLink}
+              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+            >
+              {resolvingLink ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Verifying Portal Link...</span>
+                </>
+              ) : (
+                <>
+                  <span>
+                    {current.application_mode === 'offline' ? 'Open Guidelines & Portal' : 'Open Official Application Portal'}
+                  </span>
+                  <ExternalLink className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
       </div>

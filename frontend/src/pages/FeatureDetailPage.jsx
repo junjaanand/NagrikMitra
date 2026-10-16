@@ -19,6 +19,8 @@ import DocumentScannerDemo from '../components/features/DocumentScannerDemo';
 import VisualAnalyticsDemo from '../components/features/VisualAnalyticsDemo';
 import SchemeComparisonDemo from '../components/features/SchemeComparisonDemo';
 import ReadinessHandoffDemo from '../components/features/ReadinessHandoffDemo';
+import useRequireAuth from '../hooks/useRequireAuth';
+import AuthModal from '../components/auth/AuthModal';
 
 const ALL_FEATURE_KEYS = [
   'deterministic-matcher',
@@ -37,8 +39,33 @@ export default function FeatureDetailPage({
   onOpenVoiceModal,
   onOpenScanModal,
 }) {
+  const { withAuth, user } = useRequireAuth();
   const data = FEATURES_DATA[featureId] || FEATURES_DATA['deterministic-matcher'];
   const Icon = data.icon;
+
+  const handleDashboard = () => {
+    if (!onOpenDashboard) return;
+    withAuth(onOpenDashboard, {
+      title: 'Citizen Dashboard Access',
+      message: 'Sign in or select an Instant Demo Citizen to access your personalized welfare dashboard.',
+    });
+  };
+
+  const handleVoiceModal = () => {
+    if (!onOpenVoiceModal) return;
+    withAuth(onOpenVoiceModal, {
+      title: 'AI Voice Assistant Access',
+      message: 'Sign in or select an Instant Demo Citizen to test real-time voice speech synthesis and conversational RAG.',
+    });
+  };
+
+  const handleScanModal = () => {
+    if (!onOpenScanModal) return;
+    withAuth(onOpenScanModal, {
+      title: 'Identity Document Scanner Access',
+      message: 'Sign in or select an Instant Demo Citizen to scan Aadhaar, PAN, or Ration cards.',
+    });
+  };
 
   const currentIndex = ALL_FEATURE_KEYS.indexOf(data.id);
   const prevKey = ALL_FEATURE_KEYS[(currentIndex - 1 + ALL_FEATURE_KEYS.length) % ALL_FEATURE_KEYS.length];
@@ -89,7 +116,7 @@ export default function FeatureDetailPage({
 
           {onOpenDashboard && (
             <button
-              onClick={onOpenDashboard}
+              onClick={handleDashboard}
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
             >
               <LayoutDashboard className="w-3.5 h-3.5" />
@@ -175,19 +202,19 @@ export default function FeatureDetailPage({
           </div>
 
           {data.interactiveType === 'matcher' && (
-            <MatcherSimulator onOpenDashboard={onOpenDashboard} />
+            <MatcherSimulator onOpenDashboard={handleDashboard} />
           )}
           {data.interactiveType === 'voice' && (
-            <VoiceAssistantDemo onOpenVoiceModal={onOpenVoiceModal} />
+            <VoiceAssistantDemo onOpenVoiceModal={handleVoiceModal} />
           )}
           {data.interactiveType === 'scanner' && (
-            <DocumentScannerDemo onOpenScanModal={onOpenScanModal} />
+            <DocumentScannerDemo onOpenScanModal={handleScanModal} />
           )}
           {data.interactiveType === 'analytics' && (
-            <VisualAnalyticsDemo onOpenDashboard={onOpenDashboard} />
+            <VisualAnalyticsDemo onOpenDashboard={handleDashboard} />
           )}
           {data.interactiveType === 'comparison' && (
-            <SchemeComparisonDemo onOpenDashboard={onOpenDashboard} />
+            <SchemeComparisonDemo onOpenDashboard={handleDashboard} />
           )}
           {data.interactiveType === 'readiness' && (
             <ReadinessHandoffDemo />
@@ -346,6 +373,8 @@ export default function FeatureDetailPage({
 
       </main>
 
+      {/* Intent-driven Auth Modal for intercepted sandbox actions */}
+      <AuthModal />
     </div>
   );
 }

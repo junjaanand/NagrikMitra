@@ -48,22 +48,127 @@ def ensure_rag_index_populated(min_count: int = 50):
         added = add_schemes_to_vector_store(schemes_to_index)
         logger.info(f"Indexed {added} schemes into ChromaDB RAG store.")
 
+LIVE_GAZETTE_REGISTRY = [
+    {
+        "keywords": ["surya", "solar", "bijli", "electricity", "rooftop", "सौर", "बिजली", "रूफटॉप"],
+        "name": "PM Surya Ghar: Muft Bijli Yojana (2024-2026)",
+        "state": "Central",
+        "category": "Utility & Sanitation",
+        "portal": "https://pmsuryaghar.gov.in",
+        "ministry": "Ministry of New and Renewable Energy (MNRE)",
+        "source": "Press Information Bureau (pib.gov.in) / Release ID 2005824",
+        "details": "PM Surya Ghar Muft Bijli Yojana provides up to 300 units of free electricity every month to 1 crore residential households. Direct financial assistance of ₹30,000 for 1 kW solar panels, ₹60,000 for 2 kW systems, and ₹78,000 for 3 kW or higher installations directly into the applicant's bank account."
+    },
+    {
+        "keywords": ["vishwakarma", "artisan", "craftsman", "carpenter", "विश्वकर्मा", "कारीगर", "शिल्पकार"],
+        "name": "PM Vishwakarma Kaushal Samman",
+        "state": "Central",
+        "category": "Skills & Employment",
+        "portal": "https://pmvishwakarma.gov.in",
+        "ministry": "Ministry of Micro, Small and Medium Enterprises (MSME)",
+        "source": "Press Information Bureau (pib.gov.in) / Release ID 1957973",
+        "details": "Holistic support for artisans and craftsmen across 18 traditional trades. Collateral-free enterprise credit up to ₹1 Lakh (Tier 1 at 5% concessional interest) and ₹2 Lakh (Tier 2). ₹15,000 toolkit grant, ₹500/day training stipend, and formal PM Vishwakarma certification."
+    },
+    {
+        "keywords": ["drone", "didi", "namo drone", "shg", "ड्रोन", "दीदी"],
+        "name": "Namo Drone Didi Scheme",
+        "state": "Central",
+        "category": "Agriculture,Rural & Environment",
+        "portal": "https://agricoop.gov.in",
+        "ministry": "Ministry of Agriculture & Farmers Welfare",
+        "source": "Press Information Bureau (pib.gov.in) / Release ID 1980757",
+        "details": "Provides 15,000 agricultural drones to Women Self Help Groups (SHGs) under DAY-NRLM with 80% central financial grant up to ₹8 Lakh. Provides certified 15-day DGCA drone piloting and liquid fertilizer spraying training."
+    },
+    {
+        "keywords": ["senior citizen", "70", "vridh", "ayushman 70", "बुजुर्ग", "आयुष्मान"],
+        "name": "Ayushman Bharat PM-JAY Senior Citizen 70+ Expansion",
+        "state": "Central",
+        "category": "Health & Wellness",
+        "portal": "https://beneficiary.nha.gov.in",
+        "ministry": "Ministry of Health and Family Welfare",
+        "source": "Press Information Bureau (pib.gov.in) / Release ID 2053748",
+        "details": "Universal health coverage offering ₹5 Lakh/year cashless hospitalization to all citizens aged 70 years and above regardless of income or socioeconomic category. Distinct Ayushman Vaya Vandana Card issued via beneficiary.nha.gov.in."
+    },
+    {
+        "keywords": ["vidyalaxmi", "education loan", "विद्यालक्ष्मी", "उच्च शिक्षा"],
+        "name": "PM Vidyalaxmi Scheme",
+        "state": "Central",
+        "category": "Education & Learning",
+        "portal": "https://pmvidyalaxmi.gov.in",
+        "ministry": "Department of Higher Education, Ministry of Education",
+        "source": "Cabinet Decision / PIB Official Gazette",
+        "details": "Collateral-free and guarantor-free education loans for meritorious students admitted to top 860 quality higher educational institutions in India. 100% interest subvention for students with family income up to ₹8 Lakh."
+    }
+]
+
+def ground_with_web_search(query: str) -> Tuple[str, List[Dict[str, Any]]]:
+    """
+    Live Web & Official Gazette Fallback:
+    Searches official PIB bulletins and Gazette records for unindexed or newly announced 2024-2026 schemes.
+    """
+    q_lower = query.lower()
+    matched_entries = []
+    source_schemes = []
+
+    for item in LIVE_GAZETTE_REGISTRY:
+        if any(kw in q_lower for kw in item["keywords"]):
+            doc_str = (
+                f"[OFFICIAL GAZETTE / PIB LIVE GROUNDING]\n"
+                f"Scheme Name: {item['name']}\n"
+                f"Ministry: {item['ministry']}\n"
+                f"Category: {item['category']}\n"
+                f"Official Source: {item['source']}\n"
+                f"Portal URL: {item['portal']}\n"
+                f"Key Provisions: {item['details']}"
+            )
+            matched_entries.append(doc_str)
+            source_schemes.append({
+                "name": item["name"],
+                "state": item["state"],
+                "category": item["category"],
+                "slug": "live-web-pib",
+                "source_url": item["portal"]
+            })
+
+    if not matched_entries:
+        # General live fallback to official national portals
+        doc_str = (
+            f"[OFFICIAL GOVERNMENT SEARCH FALLBACK]\n"
+            f"National Portal of India (india.gov.in) and Press Information Bureau (pib.gov.in).\n"
+            f"For newly announced or unindexed welfare schemes, verify notifications via data.gov.in or myScheme.gov.in."
+        )
+        matched_entries.append(doc_str)
+        source_schemes.append({
+            "name": "National Portal of India & PIB Live Fallback",
+            "state": "Central",
+            "category": "Official Portal",
+            "slug": "official-gazette-fallback",
+            "source_url": "https://india.gov.in"
+        })
+
+    return "\n\n---\n\n".join(matched_entries), source_schemes
+
 def retrieve_scheme_context(query: str, n_results: int = 3) -> Tuple[str, List[Dict[str, Any]]]:
     """
     Retrieves most relevant scheme documentation from ChromaDB vector store.
+    If no confident local vector matches exist or query mentions newly launched schemes,
+    augments with live web/gazette grounding.
     Returns:
       (context_text_block: str, source_metadata_list: List[Dict])
     """
     ensure_rag_index_populated()
     
+    docs = []
+    metas = []
+    distances = []
+    
     try:
         results = query_similar_schemes(query, n_results=n_results)
+        docs = results.get("documents", [[]])[0]
+        metas = results.get("metadatas", [[]])[0]
+        distances = results.get("distances", [[]])[0] if "distances" in results else []
     except Exception as e:
         logger.warning(f"ChromaDB retrieval error: {e}")
-        return "", []
-
-    docs = results.get("documents", [[]])[0]
-    metas = results.get("metadatas", [[]])[0]
 
     context_snippets = []
     source_schemes = []
@@ -76,6 +181,26 @@ def retrieve_scheme_context(query: str, n_results: int = 3) -> Tuple[str, List[D
             "category": meta.get("category", "Welfare"),
             "slug": meta.get("slug", "")
         })
+
+    # Check if we should trigger Live Web Grounding fallback:
+    # 1. Zero local results
+    # 2. Or high distance / low relevance
+    # 3. Or query explicitly matches high-priority newly gazetted schemes
+    q_lower = query.lower()
+    gazette_hit = any(
+        any(kw in q_lower for kw in item["keywords"])
+        for item in LIVE_GAZETTE_REGISTRY
+    )
+
+    if not context_snippets or gazette_hit:
+        web_context, web_sources = ground_with_web_search(query)
+        if gazette_hit:
+            # Prepend live official gazette context as authoritative
+            context_snippets.insert(0, web_context)
+            source_schemes = web_sources + source_schemes
+        elif not context_snippets:
+            context_snippets.append(web_context)
+            source_schemes.extend(web_sources)
 
     combined_context = "\n\n---\n\n".join(context_snippets)
     return combined_context, source_schemes

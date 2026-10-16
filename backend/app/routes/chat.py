@@ -1,20 +1,21 @@
 import time
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from app.services.rag_pipeline import process_chat_with_rag
 from app.services.llm_client import llm_client
 from app.config import settings
+from app.dependencies.auth import get_current_citizen, check_compute_rate_limit
 
 router = APIRouter()
 
 class ChatMessage(BaseModel):
     role: str = Field(..., description="'user' or 'assistant'")
-    content: str = Field(..., description="Message text")
+    content: str = Field(..., max_length=2000, description="Message text")
 
 class ChatRequest(BaseModel):
-    message: str = Field(..., min_length=1, description="User's query in Hindi or English")
-    history: Optional[List[ChatMessage]] = Field(default=[], description="Recent conversation turns")
+    message: str = Field(..., min_length=1, max_length=2000, description="User's query in Hindi or English")
+    history: Optional[List[ChatMessage]] = Field(default=[], max_length=20, description="Recent conversation turns")
     current_profile: Optional[Dict[str, Any]] = Field(default=None, description="Existing citizen profile state")
 
 class ChatResponse(BaseModel):
@@ -29,7 +30,7 @@ class ChatResponse(BaseModel):
     latency_ms: float
 
 class SlotExtractionRequest(BaseModel):
-    text: str = Field(..., min_length=1, description="Text to extract demographic entities from")
+    text: str = Field(..., min_length=1, max_length=2000, description="Text to extract demographic entities from")
 
 @router.get("/")
 async def chat_info():
@@ -45,10 +46,13 @@ async def chat_info():
     }
 
 @router.post("/message", response_model=ChatResponse)
-async def handle_chat_message(request: ChatRequest):
+async def handle_chat_message(
+    request: ChatRequest,
+    current_citizen: Dict[str, Any] = Depends(check_compute_rate_limit(max_requests=30, window_seconds=60))
+):
     """
     Multilingual conversational AI endpoint with RAG context and Multi-Tier Fallback (Groq -> Gemini -> Local).
-    Extracts demographic slots and returns grounded scheme recommendations in Hindi or English.
+    Protected by CERT-In authentication and compute quota rate limiting.
     """
     t0 = time.perf_counter()
     try:
@@ -71,19 +75,31 @@ async def handle_chat_message(request: ChatRequest):
             recommended_schemes=result["recommended_schemes"],
             latency_ms=round(latency, 2)
         )
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Chat processing error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="The AI assistant is temporarily unavailable. Please try asking your question again."
+        )
 
 @router.post("/extract-slots")
-async def extract_demographic_slots(request: SlotExtractionRequest):
+async def extract_slots(
+    request: SlotExtractionRequest,
+    current_citizen: Dict[str, Any] = Depends(get_current_citizen)
+):
     """
-    Extracts demographic slots (age, gender, state, income, caste, etc.) from natural language text.
+    Direct endpoint for extracting demographic profile slots from freeform text.
+    Protected by citizen authentication.
     """
     try:
         slots = llm_client.extract_profile_slots(request.text)
-        return {"extracted_slots": slots}
+        return {
+            "status": "success",
+            "slots": slots
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Slot extraction error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Slot extraction failed: {str(e)}")
 
 @router.get("/status")
 async def chat_provider_status():

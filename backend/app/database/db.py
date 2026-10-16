@@ -10,8 +10,16 @@ if DB_PATH.startswith("./"):
 
 @contextmanager
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=10.0)
     conn.row_factory = sqlite3.Row
+    # Configure pragmas for high concurrency and performance
+    conn.execute("PRAGMA busy_timeout = 5000;")
+    try:
+        from app.services.link_resolver import classify_application_mode, classify_lifecycle_status
+        conn.create_function("classify_mode", 2, classify_application_mode)
+        conn.create_function("classify_status", 3, classify_lifecycle_status)
+    except Exception:
+        pass
     try:
         yield conn
     finally:
@@ -21,6 +29,8 @@ def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     with get_db() as conn:
         cursor = conn.cursor()
+        cursor.execute("PRAGMA journal_mode = WAL;")
+        cursor.execute("PRAGMA synchronous = NORMAL;")
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS schemes (
             slug TEXT PRIMARY KEY,

@@ -93,11 +93,53 @@ export function AuthProvider({ children }) {
     return data;
   };
 
+  const [pendingAction, setPendingAction] = useState(null);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authModalConfig, setAuthModalConfig] = useState({
+    title: 'Citizen Authentication Required',
+    message: 'Please sign in or select an Instant Demo Citizen profile to access this tool.',
+    requiredRole: null,
+  });
+
+  const openAuthModal = (config = {}) => {
+    setAuthModalConfig({
+      title: config.title || 'Citizen Authentication Required',
+      message: config.message || 'Please sign in or select an Instant Demo Citizen profile to access this tool.',
+      requiredRole: config.requiredRole || null,
+    });
+    setAuthModalOpen(true);
+  };
+
+  const closeAuthModal = () => {
+    setAuthModalOpen(false);
+    setPendingAction(null);
+  };
+
+  const requireAuth = (actionCallback, config = {}) => {
+    if (user) {
+      const currentRole = user.user_metadata?.rbac_role || (user.id?.includes('vle') ? 'admin' : 'citizen');
+      if (config.requiredRole && config.requiredRole !== currentRole) {
+        openAuthModal({
+          title: 'Administrative Access Required',
+          message: `This action requires ${config.requiredRole === 'admin' ? 'CSC VLE / District Admin' : config.requiredRole} privileges. Select the CSC VLE profile to continue.`,
+          requiredRole: config.requiredRole,
+        });
+        setPendingAction(() => actionCallback);
+        return;
+      }
+      actionCallback(user);
+    } else {
+      openAuthModal(config);
+      setPendingAction(() => actionCallback);
+    }
+  };
+
   // 4. Sign Out
   const signOut = async () => {
     localStorage.removeItem('nagrikmitra_demo_user');
     setUser(null);
     setSession(null);
+    setPendingAction(null);
     if (isSupabaseConfigured && supabase) {
       await supabase.auth.signOut();
     }
@@ -114,6 +156,7 @@ export function AuthProvider({ children }) {
           role: 'Farmer (UP • BPL)',
           state: 'Uttar Pradesh',
           age: 38,
+          rbac_role: 'citizen',
         },
         is_demo: true,
       },
@@ -125,6 +168,7 @@ export function AuthProvider({ children }) {
           role: 'Student (MH • SC Category)',
           state: 'Maharashtra',
           age: 21,
+          rbac_role: 'citizen',
         },
         is_demo: true,
       },
@@ -136,6 +180,19 @@ export function AuthProvider({ children }) {
           role: 'Self-Help Group (Gujarat • Rural)',
           state: 'Gujarat',
           age: 34,
+          rbac_role: 'citizen',
+        },
+        is_demo: true,
+      },
+      vle: {
+        id: 'demo-vle-admin-04',
+        email: 'vikram.vle@csc.gov.in',
+        user_metadata: {
+          full_name: 'Vikram Singh (CSC VLE)',
+          role: 'District Nodal Officer / CSC VLE',
+          state: 'Central',
+          age: 32,
+          rbac_role: 'admin',
         },
         is_demo: true,
       },
@@ -144,6 +201,17 @@ export function AuthProvider({ children }) {
     const chosenProfile = demoProfiles[profileType] || demoProfiles.farmer;
     setUser(chosenProfile);
     localStorage.setItem('nagrikmitra_demo_user', JSON.stringify(chosenProfile));
+    
+    // Auto-resume intercepted pending action if registered
+    if (pendingAction) {
+      const action = pendingAction;
+      setPendingAction(null);
+      setAuthModalOpen(false);
+      setTimeout(() => action(chosenProfile), 100);
+    } else {
+      setAuthModalOpen(false);
+    }
+
     return chosenProfile;
   };
 
@@ -154,6 +222,11 @@ export function AuthProvider({ children }) {
         session,
         loading,
         isConfigured: isSupabaseConfigured,
+        authModalOpen,
+        authModalConfig,
+        openAuthModal,
+        closeAuthModal,
+        requireAuth,
         signInWithGoogle,
         signInWithEmail,
         signUpWithEmail,

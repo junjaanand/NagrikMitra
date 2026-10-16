@@ -33,6 +33,16 @@ ENV/
 !.env.example
 *.local
 
+# Database & Vector Stores
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+backend/data/*.db
+data/chroma_db/
+chroma_db/
+
 # Node & Frontend
 node_modules/
 frontend/node_modules/

@@ -1,6 +1,6 @@
-# 10-Day End-to-End Implementation Plan: NagrikMitra (नागरिक मित्र)
+# 12-Day End-to-End Implementation Plan: NagrikMitra (नागरिक मित्र)
 
-This document establishes the production-grade, 10-day roadmap for developing and validating **NagrikMitra (नागरिक मित्र)** from scratch into a fully functional, distinction-caliber final-year project.
+This document establishes the production-grade, 12-day roadmap for developing and validating **NagrikMitra (नागरिक मित्र)** from scratch into a fully functional, distinction-caliber final-year project.
 
 ---
 
@@ -18,8 +18,8 @@ This document establishes the production-grade, 10-day roadmap for developing an
 │    • About Project & Digital India Mission narrative                   │
 │    • Tech Stack showcase & Team Attribution profiles                   │
 │                                                                        │
-│ 2. AUTHENTICATION & SESSION STORE (Firebase Auth + FastAPI)            │
-│    • Google One-Click OAuth 2.0 Sign-In + Phone OTP Login              │
+│ 2. AUTHENTICATION & SESSION STORE (Supabase Auth + FastAPI)            │
+│    • Google One-Click OAuth 2.0 Sign-In + 1-Click Demo Citizen Logins  │
 │    • Persistent demographic profile & bookmarked scheme storage        │
 │                                                                        │
 │ 3. CITIZEN COMMAND DASHBOARD (Post-Login Protected Hub)                │
@@ -30,10 +30,11 @@ This document establishes the production-grade, 10-day roadmap for developing an
 │ 4. DETERMINISTIC ELIGIBILITY ENGINE (Python + SQLite)                  │
 │    • Logical evaluation across 9 parameters (Age, Gender, State,       │
 │      Caste, Income, Residence, BPL, Disability, Occupation)            │
-│    • Zero hallucination, evaluates all 4,693 schemes in <250ms         │
+│    • Zero hallucination, evaluates all 4,693 schemes in <60ms          │
 │                                                                        │
-│ 5. MULTILINGUAL AI VOICE & CHAT ASSISTANT (Gemini + RAG + Web Speech)  │
-│    • Bidirectional voice in Hindi & English (SpeechRecognition API)   │
+│ 5. MULTILINGUAL AI VOICE & CHAT ASSISTANT (Groq/Gemini + RAG)          │
+│    • Bidirectional voice in Hindi & English (Web Speech API)           │
+│    • Multi-tier fallback LLM: Groq Llama 3.3 70B → Gemini → Local      │
 │    • LangChain + ChromaDB RAG over scheme texts and guidelines         │
 │                                                                        │
 │ 6. IDENTITY DOCUMENT SCANNER (Tesseract OCR 5.0 + Live Camera)         │
@@ -44,6 +45,15 @@ This document establishes the production-grade, 10-day roadmap for developing an
 │    • Side-by-side scheme comparison matrix (2 to 4 schemes)           │
 │    • Document readiness index (% ready) & missing certificate alerts   │
 │    • Offline QR Code generator for mobile hand-off or CSC visits       │
+│                                                                        │
+│ 8. DYNAMIC INGESTION & LIVE WEB GROUNDING (Day 11)                     │
+│    • Open Government Data (data.gov.in) automated sync service         │
+│    • Dual-Write persistence (SQLite B-Tree + ChromaDB vectors)         │
+│    • Real-time web grounding over PIB / India.gov.in for new schemes   │
+│                                                                        │
+│ 9. STRICT AUTHENTICATION GATING & RBAC (Day 12)                        │
+│    • Public showcase perimeter vs. Fully-gated computational actions   │
+│    • Intent-driven login interception with auto-resume flow            │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -58,7 +68,7 @@ This document establishes the production-grade, 10-day roadmap for developing an
 
 ---
 
-## 10-Day Daily Breakdown
+## 12-Day Daily Breakdown
 
 ```
 ┌──────┬─────────────────────────────────────────────────────────────────┐
@@ -66,14 +76,16 @@ This document establishes the production-grade, 10-day roadmap for developing an
 ├──────┼─────────────────────────────────────────────────────────────────┤
 │ D-1  │ Project Setup, Dataset Ingestion & SQLite/ChromaDB Architecture │
 │ D-2  │ Deterministic Rule Engine & Fast Scheme Query REST APIs         │
-│ D-3  │ Multilingual RAG Knowledge Pipeline & Gemini LLM Integration    │
+│ D-3  │ Multilingual RAG Knowledge Pipeline & Multi-Tier Fallback LLM   │
 │ D-4  │ Tesseract OCR & Document Computer Vision Extraction Pipeline   │
 │ D-5  │ Modern React 18 Scaffolding, Design System & Public Landing     │
-│ D-6  │ Landing Page Completion & Firebase Authentication (Google/Phone)│
-│ D-7  │ Protected Citizen Dashboard, User Profile & State Management    │
-│ D-8  │ Interactive Eligibility Wizard & Recharts Analytics Dashboard   │
-│ D-9  │ AI Chatbot with Web Speech Voice API & Live Camera OCR Scanner  │
-│ D-10 │ Scheme Comparison, QR Code Sharing, End-to-End Testing & Polish │
+│ D-6  │ Landing Page Completion & Supabase Auth (OAuth/Demo Citizen)    │
+│ D-7  │ Protected Citizen Dashboard, 4-Stage Wizard & 6 Feature Pages   │
+│ D-8  │ Recharts Visual Analytics Dashboard & Interactive Data Drilldown│
+│ D-9  │ AI Voice Assistant & Live Camera WebRTC Document Scanner        │
+│ D-10 │ Scheme Comparison Matrix, Offline QR Code Sharing & Testing     │
+│ D-11 │ Dynamic Scheme Ingestion, Open Gov Data Sync & Live Web Grounding│
+│ D-12 │ Strict Authentication Gating, RBAC & Intent-Driven Action Flow  │
 └──────┴─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -354,12 +366,69 @@ This document establishes the production-grade, 10-day roadmap for developing an
 
 ---
 
+### 📅 Day 11: Dynamic Scheme Ingestion, Open Government Data Sync & Live Web Fallback
+
+#### What We Are Building:
+- **Continuous Freshness Architecture:** Solves the fixed-dataset limitation by providing programmatic and administrative ingestion pipelines for new/future government schemes.
+- **Dual-Write Synchronization Engine:** Atomic persistence into SQLite relational database (`nagrikmitra.db`) and ChromaDB vector store (`nagrikmitra_schemes`).
+- **Open Government Data (OGD) Sync Service:** Automated ingestion from `data.gov.in` and ministry gazettes under the National Data Sharing and Accessibility Policy (NDSAP).
+- **Live Web Search Grounding:** AI chatbot fallback that dynamically searches official government press releases (`pib.gov.in`) when a citizen asks about a brand-new, unindexed scheme.
+- **Admin / CSC VLE Ingestion Portal:** Web interface for district officers and Common Service Center operators to register new local welfare schemes in real time.
+
+#### Step-by-Step Technical Tasks:
+1. Implement `backend/app/services/data_gov_sync.py`:
+   - Integrates with `data.gov.in` public endpoints to pull updated scheme records.
+   - Normalizes JSON into standard 24-column scheme schema with Pydantic validation.
+2. Implement Dynamic Scheme Creation Endpoint (`POST /api/schemes/create`):
+   - Accepts statutory eligibility parameters, benefits, and guidelines.
+   - Inserts record into SQLite `schemes` table with immediate B-Tree index recalculation.
+   - Automatically generates dense embeddings and registers record into ChromaDB persistent collection.
+3. Enhance RAG Pipeline with Live Web Grounding (`backend/app/services/rag_pipeline.py`):
+   - Evaluates vector retrieval distance threshold (> 0.75 indicates unindexed scheme).
+   - Automatically falls back to real-time search over `pib.gov.in` and official ministry releases.
+4. Build `frontend/src/components/dashboard/AddSchemeModal.jsx`:
+   - Administrative dialog allowing authorized CSC operators and administrators to publish newly announced schemes.
+   - Immediately triggers client-side re-evaluation across all active citizen profiles.
+
+#### Verification Criteria:
+- Posting a newly announced test scheme via `POST /api/schemes/create` reflects immediately in both the SQLite rule engine and ChromaDB vector retrieval without server restart.
+- Querying the chatbot about an unindexed scheme triggers real-time web grounding instead of hallucinating.
+
+---
+
+### 📅 Day 12: Strict Authentication Gating, RBAC & Intent-Driven Action Interception
+
+#### What We Are Building:
+- **Strict Authentication Perimeter:** Restricts all computational and sensitive features (AI Voice Assistant, Live Camera Scanner, Eligibility Wizard, and Feature Sandboxes) to authenticated citizens only, adhering to CERT-In civic portal cybersecurity standards.
+- **Intent-Driven Login Interception:** When an unauthenticated visitor clicks any action button, the system intercepts the click, presents the Auth Modal (Google OAuth / Email / 1-Click Instant Demo), and automatically resumes the requested tool upon authentication without requiring redundant clicks.
+- **Role-Based Access Control (RBAC):** Explicit roles for Guest (Informational), Verified Citizen (Personal Vault), and District Nodal Officer / CSC VLE (Administrative).
+- **Compute Quota Protection:** Enforces per-user rate limiting on Groq/Gemini LLM token calls and Tesseract OCR server processing to prevent denial-of-service and unauthenticated compute exhaustion.
+
+#### Step-by-Step Technical Tasks:
+1. Build `frontend/src/hooks/useRequireAuth.js`:
+   - Intercepts unauthenticated actions and records pending callbacks.
+   - Triggers `AuthModal` with contextual banner: *"Log in or select an Instant Demo Citizen to access this tool"*.
+   - Auto-executes pending action immediately upon successful session establishment.
+2. Update `LandingPage.jsx` and `KeyFeatures.jsx`:
+   - Wraps "Find Schemes Now", "Ask AI", "Scan Document", and "Explore Feature" buttons in the auth interceptor.
+3. Update `FeatureDetailPage.jsx`:
+   - Sandbox widgets render an authenticated workspace for logged-in citizens, or an interactive preview with a 1-click unlock button for guests.
+4. Backend API Token Verification Middleware:
+   - Verifies Supabase Bearer JWT tokens on `/api/chat` and `/api/ocr` routes.
+
+#### Verification Criteria:
+- Unauthenticated click on "Ask AI" or "Launch Camera Scanner" opens Auth Modal.
+- Selecting "Instant Demo: Small Farmer" establishes session and immediately launches the requested tool without requiring a secondary click.
+
+---
+
 ## Verification Plan
 
 ### Automated Tests
 - `pytest backend/tests/test_rule_engine.py`: Validates TC-01 to TC-03.
 - `pytest backend/tests/test_ocr.py`: Validates regex extraction on test images.
 - `pytest backend/tests/test_rag.py`: Validates ChromaDB retrieval and Gemini integration.
+- `pytest backend/tests/test_dynamic_sync.py`: Validates dual-write SQLite + ChromaDB ingestion and web search fallback.
 
 ### Manual Verification Flow
 1. **Landing Page:** Open `http://localhost:5173/`, verify typewriter animation, live stats counters, and smooth scrolling across all 8 sections.
@@ -369,3 +438,6 @@ This document establishes the production-grade, 10-day roadmap for developing an
 5. **Eligibility Wizard:** Verify pre-filled profile fields, submit form, verify matched scheme cards appear alongside Recharts graphical visualizations.
 6. **Voice AI Assistant:** Click floating mic, speak in Hindi: *"मुझे किसान योजना के बारे में बताओ"*, verify transcribed query, streaming response, and spoken audio playback.
 7. **Scheme Comparison & QR Code:** Select 2 schemes, view comparison matrix, click "Share via QR", and scan with smartphone to view matched summary.
+8. **Dynamic Scheme Ingestion (Day 11):** Use Admin modal to submit a newly announced 2026 scheme, verify it matches in the rule engine in <60ms, and query the chatbot to verify live grounding.
+9. **Strict Auth Gating (Day 12):** Click "Ask AI" as guest, confirm login interception, select demo farmer profile, and verify seamless auto-resume into the voice assistant.
+

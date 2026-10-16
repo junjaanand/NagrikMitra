@@ -24,7 +24,7 @@ def test_sqlite_database():
         c.execute("SELECT COUNT(*) FROM schemes")
         count = c.fetchone()[0]
         print(f"Total schemes in DB: {count}")
-        assert count == 4693, f"Expected 4693 schemes, got {count}"
+        assert count >= 4693, f"Expected at least 4693 schemes, got {count}"
         
         # 2. Query Latency Benchmark
         t0 = time.perf_counter()

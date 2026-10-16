@@ -1,8 +1,9 @@
 import io
-from fastapi import APIRouter, File, UploadFile, HTTPException
-from typing import List
+from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
+from typing import List, Dict, Any
 from app.models.ocr import OCRScanResponse, CameraFrameScanRequest, SupportedDocInfo
 from app.services.ocr_service import process_document_ocr
+from app.dependencies.auth import check_compute_rate_limit
 
 router = APIRouter()
 
@@ -39,10 +40,14 @@ async def ocr_info():
     }
 
 @router.post("/scan-file", response_model=OCRScanResponse)
-async def scan_document_file(file: UploadFile = File(...)):
+async def scan_document_file(
+    file: UploadFile = File(...),
+    current_citizen: Dict[str, Any] = Depends(check_compute_rate_limit(max_requests=20, window_seconds=60))
+):
     """
     Accepts an uploaded image file (PNG, JPG, JPEG, WEBP) of an identity document,
     executes OCR text extraction, and returns structured attributes with an auto-filled eligibility profile.
+    Protected by CERT-In authentication and compute quota rate limiting.
     """
     if not file.content_type.startswith("image/"):
         raise HTTPException(
@@ -50,27 +55,63 @@ async def scan_document_file(file: UploadFile = File(...)):
             detail=f"Invalid file format: '{file.content_type}'. Please upload an image file (PNG, JPG, WEBP)."
         )
     
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+    CHUNK_SIZE = 64 * 1024             # 64 KB
+    
+    chunks = []
+    total_bytes = 0
+
     try:
-        contents = await file.read()
-        if len(contents) > 10 * 1024 * 1024:
-            raise HTTPException(status_code=400, detail="File too large. Maximum allowed size is 10 MB.")
-            
+        while True:
+            chunk = await file.read(CHUNK_SIZE)
+            if not chunk:
+                break
+            total_bytes += len(chunk)
+            if total_bytes > MAX_FILE_SIZE:
+                raise HTTPException(
+                    status_code=413,
+                    detail="Uploaded file exceeds the maximum permitted size limit of 10 MB."
+                )
+            chunks.append(chunk)
+
+        contents = b"".join(chunks)
         result = process_document_ocr(contents)
         return result
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"OCR processing failure: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to process document image with OCR. Please ensure the image is clear and try again."
+        )
 
 @router.post("/scan-frame", response_model=OCRScanResponse)
-async def scan_camera_frame(request: CameraFrameScanRequest):
+async def scan_camera_frame(
+    request: CameraFrameScanRequest,
+    current_citizen: Dict[str, Any] = Depends(check_compute_rate_limit(max_requests=25, window_seconds=60))
+):
     """
     Accepts a base64 encoded image frame from the browser's live video stream (WebRTC getUserMedia),
     processes it through the OCR engine, and returns extracted identity details.
+    Protected by CERT-In authentication and compute quota rate limiting.
     """
+    # Enforce base64 payload size guard (~10MB decoded payload ceiling)
+    if len(request.image_base64) > 14 * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail="Camera frame payload exceeds maximum permissible size."
+        )
+
     try:
         result = process_document_ocr(request.image_base64)
         return result
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Camera frame OCR error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to parse camera frame. Please position the identity card clearly in the frame."
+        )
 
 @router.get("/supported-docs", response_model=List[SupportedDocInfo])
 async def get_supported_documents():

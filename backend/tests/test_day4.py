@@ -115,9 +115,10 @@ def test_ocr_api_endpoints():
     assert len(docs) >= 3
 
     # 2. File Upload Endpoint (POST /api/ocr/scan-file)
+    auth_headers = {"Authorization": "Bearer demo-session-farmer"}
     aadhaar_bytes = generate_synthetic_aadhaar()
     files = {"file": ("test_aadhaar.png", aadhaar_bytes, "image/png")}
-    r_file = client.post("/api/ocr/scan-file", files=files)
+    r_file = client.post("/api/ocr/scan-file", headers=auth_headers, files=files)
     assert r_file.status_code == 200
     file_res = r_file.json()
     assert file_res["document_type"] == "Aadhaar"
@@ -128,7 +129,7 @@ def test_ocr_api_endpoints():
     b64_str = base64.b64encode(pan_bytes).decode("utf-8")
     data_uri = f"data:image/png;base64,{b64_str}"
     
-    r_frame = client.post("/api/ocr/scan-frame", json={"image_base64": data_uri})
+    r_frame = client.post("/api/ocr/scan-frame", headers=auth_headers, json={"image_base64": data_uri})
     assert r_frame.status_code == 200
     frame_res = r_frame.json()
     assert frame_res["document_type"] == "PAN"
