@@ -10,12 +10,12 @@ ENV PYTHONUNBUFFERED=1
 ENV TESSERACT_CMD=/usr/bin/tesseract
 
 # Install system runtime dependencies: Linux Tesseract 5.x with Indic traineddata (Hindi + Marathi)
-# and essential headless libraries (libgl1-mesa-glx, libglib2.0-0)
+# and essential runtime libraries (libgl1, libglib2.0-0)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
     tesseract-ocr-hin \
     tesseract-ocr-mar \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     curl \
     && rm -rf /var/lib/apt/lists/*
