@@ -16,10 +16,18 @@ import {
   Loader2,
   Globe,
   Building,
+  GitMerge,
+  ArrowRight,
+  Volume2,
+  VolumeX,
+  FileDown,
+  MessageCircle,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { getSchemeBySlug, resolveSchemeLink, reportBrokenLink } from '../../api/client';
 import SchemeGuidelinesView from './SchemeGuidelinesView';
+import { readSchemeAloud, stopSpeech } from '../../utils/speechHelper';
+import { generateKendraSlip, shareOnWhatsApp } from '../../utils/slipGenerator';
 
 export default function SchemeDetailModal({ scheme, isOpen, onClose, isBookmarked, onToggleBookmark }) {
   const [detail, setDetail] = useState(null);
@@ -30,12 +38,14 @@ export default function SchemeDetailModal({ scheme, isOpen, onClose, isBookmarke
   const [resolvedLink, setResolvedLink] = useState(null);
   const [reporting, setReporting] = useState(false);
   const [reported, setReported] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
 
   useEffect(() => {
     if (scheme?.slug && isOpen) {
       setLoading(true);
       setResolvedLink(null);
       setReported(false);
+      setSpeaking(false);
       getSchemeBySlug(scheme.slug)
         .then((data) => {
           setDetail(data);
@@ -43,8 +53,27 @@ export default function SchemeDetailModal({ scheme, isOpen, onClose, isBookmarke
         })
         .catch(() => setDetail(scheme))
         .finally(() => setLoading(false));
+    } else {
+      stopSpeech();
+      setSpeaking(false);
     }
+    return () => {
+      stopSpeech();
+    };
   }, [scheme, isOpen]);
+
+  const handleToggleVoice = () => {
+    if (speaking) {
+      stopSpeech();
+      setSpeaking(false);
+    } else if (current) {
+      setSpeaking(true);
+      readSchemeAloud(current, {
+        onEnd: () => setSpeaking(false),
+        onError: () => setSpeaking(false),
+      });
+    }
+  };
 
   const handleResolveAndOpenLink = async () => {
     if (!current) return;
@@ -136,6 +165,20 @@ export default function SchemeDetailModal({ scheme, isOpen, onClose, isBookmarke
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {/* Audio Read-Out Button */}
+            <button
+              onClick={handleToggleVoice}
+              className={`p-2 rounded-xl border transition-colors cursor-pointer flex items-center gap-1.5 ${
+                speaking
+                  ? 'bg-rose-50 border-rose-300 text-rose-700 animate-pulse font-bold'
+                  : 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+              }`}
+              title={speaking ? 'Stop Audio' : 'Listen to scheme in Hindi'}
+            >
+              {speaking ? <VolumeX className="w-4 h-4 text-rose-600" /> : <Volume2 className="w-4 h-4 text-emerald-600" />}
+              <span className="text-xs font-bold hidden sm:inline">{speaking ? 'रोकें' : 'सुनिए'}</span>
+            </button>
+
             <button
               onClick={() => setShowQr((v) => !v)}
               className={`p-2 rounded-xl border transition-colors cursor-pointer ${
@@ -197,6 +240,64 @@ export default function SchemeDetailModal({ scheme, isOpen, onClose, isBookmarke
           </div>
         )}
 
+        {/* Umbrella Successor Upgrade Banner */}
+        {(current.lifecycle_status === 'subsumed' || current.successor_slug) && (
+          <div className="p-5 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200 flex items-start gap-3.5 print:hidden">
+            <div className="p-2 rounded-xl bg-amber-100 text-amber-800 shrink-0 mt-0.5">
+              <GitMerge className="w-5 h-5 text-amber-700" />
+            </div>
+            <div className="space-y-1.5 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-amber-200 text-amber-900">
+                  Restructured & Upgraded Program
+                </span>
+              </div>
+              <p className="text-xs text-amber-950 font-medium leading-relaxed">
+                {current.merger_notice || `${current.name} has been restructured and upgraded into a newer national flagship program.`}
+              </p>
+              {current.successor_slug && (
+                <button
+                  onClick={() => {
+                    getSchemeBySlug(current.successor_slug)
+                      .then((data) => setDetail(data))
+                      .catch(() => {});
+                  }}
+                  className="mt-1 inline-flex items-center gap-1.5 text-xs font-bold text-amber-900 hover:text-amber-950 underline cursor-pointer"
+                >
+                  <span>View Active Successor: {current.successor_name || current.successor_slug}</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Dead Link / Soft-Dead Offline Office Guidance */}
+        {(current.lifecycle_status === 'dead_link' || current.lifecycle_status === 'soft_dead' || current.lifecycle_status === 'offline') && (
+          <div className="p-5 bg-gradient-to-r from-rose-50 to-red-50 border-b border-rose-200 flex items-start gap-3.5 print:hidden">
+            <div className="p-2 rounded-xl bg-rose-100 text-rose-800 shrink-0 mt-0.5">
+              <Building className="w-5 h-5 text-rose-700" />
+            </div>
+            <div className="space-y-1.5 flex-1">
+              <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-rose-200 text-rose-900">
+                🏛️ Physical In-Person Application Recommended
+              </span>
+              <p className="text-xs text-rose-950 font-medium leading-relaxed">
+                The official digital portal is currently archived or under annual maintenance. You can apply in person at your nearest Gram Panchayat, Tehsildar Office, or Common Service Center (CSC).
+              </p>
+              <a
+                href="https://locator.csccloud.in/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-flex items-center gap-1.5 text-xs font-bold text-rose-900 hover:text-rose-950 underline"
+              >
+                <span>Find Nearest CSC Center (locator.csccloud.in)</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          </div>
+        )}
+
         {/* Content Body: Highly Structured Scheme Guidelines & Action Plan */}
         <div className="p-6">
           <SchemeGuidelinesView
@@ -237,7 +338,27 @@ export default function SchemeDetailModal({ scheme, isOpen, onClose, isBookmarke
             )}
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+            {/* Download Kendra Slip Button */}
+            <button
+              onClick={() => generateKendraSlip(current)}
+              className="px-3 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              title="Download Offline CSC Seva Kendra Slip (PNG Token)"
+            >
+              <FileDown className="w-3.5 h-3.5 text-emerald-600" />
+              <span>पर्ची डाउनलोड</span>
+            </button>
+
+            {/* WhatsApp Share Button */}
+            <button
+              onClick={() => shareOnWhatsApp(current)}
+              className="px-3 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              title="Share Scheme on WhatsApp"
+            >
+              <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+              <span>WhatsApp</span>
+            </button>
+
             <button
               onClick={handleResolveAndOpenLink}
               disabled={resolvingLink}

@@ -12,6 +12,7 @@ import EligibilityModal from '../components/landing/EligibilityModal';
 import QuickChatModal from '../components/landing/QuickChatModal';
 import QuickScanModal from '../components/landing/QuickScanModal';
 import AuthModal from '../components/auth/AuthModal';
+import VisualQuickPicker from '../components/discovery/VisualQuickPicker';
 import { MessageSquare, LayoutDashboard } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import useRequireAuth from '../hooks/useRequireAuth';
@@ -75,6 +76,16 @@ export default function LandingPage({ onEnterDashboard, onEnterAdmin, onExploreF
           onOpenChat={handleOpenChat}
           onOpenScanner={handleOpenScanner}
         />
+
+        {/* Section 1.5: 4-Tap Visual Scheme Discovery Picker */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6 sm:-mt-10 relative z-20 mb-12">
+          <VisualQuickPicker
+            onComplete={(quickProfile) => {
+              setScannedProfile(quickProfile);
+              setEligibilityOpen(true);
+            }}
+          />
+        </section>
 
         {/* Section 2: How It Works (3-Step Roadmap) */}
         <HowItWorks />

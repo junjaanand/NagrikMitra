@@ -4,6 +4,7 @@ import io
 import time
 import base64
 import logging
+import shutil
 from typing import Dict, Any, Tuple, Optional, List
 from PIL import Image, ImageEnhance
 import numpy as np
@@ -25,19 +26,53 @@ from app.models.ocr import ExtractedDocumentData, OCRScanResponse
 
 logger = logging.getLogger("NagrikMitra.OCR")
 
-# Locate Tesseract binary on Windows / Linux
-POSSIBLE_TESSERACT_PATHS = [
-    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
-    r"C:\Users\VARUN\AppData\Local\Programs\Tesseract-OCR\tesseract.exe",
-    "/usr/bin/tesseract",
-    "/usr/local/bin/tesseract"
-]
+# ==============================================================================
+# Cloud-Portable & Multi-Platform Tesseract Initialization
+# ==============================================================================
+TESSERACT_CMD = os.environ.get("TESSERACT_CMD")
+if not TESSERACT_CMD:
+    which_tess = shutil.which("tesseract")
+    if which_tess:
+        TESSERACT_CMD = which_tess
+    else:
+        POSSIBLE_TESSERACT_PATHS = [
+            "/usr/bin/tesseract",
+            "/usr/local/bin/tesseract",
+            r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+            r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+            os.path.expanduser(r"~\AppData\Local\Programs\Tesseract-OCR\tesseract.exe")
+        ]
+        for p in POSSIBLE_TESSERACT_PATHS:
+            if os.path.exists(p):
+                TESSERACT_CMD = p
+                break
 
-for p in POSSIBLE_TESSERACT_PATHS:
-    if os.path.exists(p):
-        pytesseract.pytesseract.tesseract_cmd = p
-        break
+if TESSERACT_CMD:
+    pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
+    logger.info(f"Initialized Tesseract OCR engine at: {TESSERACT_CMD}")
+
+# Ensure Project Tessdata (with Hindi & Marathi) is loaded if present
+BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_TESSDATA = os.path.join(BACKEND_DIR, "data", "tessdata")
+if os.path.exists(PROJECT_TESSDATA):
+    os.environ["TESSDATA_PREFIX"] = PROJECT_TESSDATA
+
+def get_supported_ocr_languages() -> str:
+    """
+    Detects whether Indic language models (hin, mar) are available in Tesseract.
+    Returns: 'eng+hin' (or 'eng+hin+mar') if available, else 'eng'.
+    """
+    try:
+        available = pytesseract.get_languages()
+        langs = ["eng"]
+        if "hin" in available:
+            langs.append("hin")
+        if "mar" in available:
+            langs.append("mar")
+        return "+".join(langs)
+    except Exception as e:
+        logger.debug(f"Could not inspect Tesseract languages: {e}. Defaulting to 'eng'.")
+        return "eng"
 
 INDIAN_STATES = [
     "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
@@ -171,38 +206,51 @@ def preprocess_image_variants(pil_img: Image.Image) -> Tuple[Image.Image, Image.
     return contrast_pil, binarized_pil
 
 def normalize_digit_confusions(s: str) -> str:
-    """Corrects common OCR character confusions in numeric blocks."""
+    """Corrects common OCR character confusions in numeric blocks, including Devanagari numerals."""
     char_map = {
         'O': '0', 'o': '0', 'D': '0', 'Q': '0',
         'I': '1', 'l': '1', '|': '1', '!': '1', 'i': '1', 'T': '1',
         'Z': '2', 'z': '2',
         'S': '5', 's': '5',
-        'B': '8'
+        'B': '8',
+        # Devanagari Hindi / Marathi Numerals mapping to standard Arabic digits
+        '०': '0', '१': '1', '२': '2', '३': '3', '४': '4',
+        '५': '5', '६': '6', '७': '7', '८': '8', '९': '9'
     }
     return ''.join(char_map.get(c, c) for c in s)
 
 def classify_document(text: str) -> str:
-    """Classifies document type based on structural keywords."""
+    """Classifies document type based on structural and bilingual Indic keywords."""
     lower = text.lower()
 
-    if re.search(r'\b[A-Za-z]{5}[0-9OIl|!SsBb]{4}[A-Za-z]{1}\b', text) or "income tax" in lower or "permanent account" in lower:
+    if re.search(r'\b[A-Za-z]{5}[0-9OIl|!SsBb]{4}[A-Za-z]{1}\b', text) or "income tax" in lower or "permanent account" in lower or "आयकर" in text or "स्थायी लेखा" in text:
         return "PAN"
 
     if (
         "unique identification" in lower
         or "aadhaar" in lower
-        or "मेरा आधार" in lower
+        or "आधार" in text
+        or "मेरा आधार" in text
         or "uidai" in lower
         or re.search(r'\b[2-9]\d{3}\s\d{4}\s\d{4}\b', text)
         or "government of india" in lower
-        or "भारत सरकार" in lower
+        or "भारत सरकार" in text
+        or "विशिष्ट पहचान" in text
     ):
         return "Aadhaar"
 
-    if "ration" in lower or "food & civil supplies" in lower or "fair price" in lower or "antyodaya" in lower or "nfsa" in lower:
+    if (
+        "ration" in lower 
+        or "राशन" in text 
+        or "food & civil supplies" in lower 
+        or "fair price" in lower 
+        or "antyodaya" in lower 
+        or "अन्त्योदय" in text 
+        or "nfsa" in lower
+    ):
         return "Ration Card"
 
-    return "Aadhaar" if any(k in lower for k in ("dob", "birth", "yob", "male", "female", "address", "पता")) else "Unknown"
+    return "Aadhaar" if any(k in lower for k in ("dob", "birth", "yob", "male", "female", "address", "पता", "जन्म")) else "Unknown"
 
 def parse_dob_and_age(text: str) -> Tuple[Optional[str], Optional[int]]:
     """
@@ -481,22 +529,32 @@ def process_document_ocr(image_input: Any) -> OCRScanResponse:
     pil_img = decode_image_input(image_input)
     gray_img, adaptive_img = preprocess_image_variants(pil_img)
 
+    # Detect supported Indic + English languages
+    lang_flag = get_supported_ocr_languages()
+
     # Pass 1: Neural LSTM with Page Segmentation Mode 3 (Fully automatic segmentation)
     # Allows reading multi-column layouts, names, headings, and dates naturally
-    config_pass1 = r'--oem 3 --psm 3'
+    config_pass1 = f'--oem 1 --psm 3 -l {lang_flag}'
     raw_pass1 = pytesseract.image_to_string(gray_img, config=config_pass1).strip()
 
     # Pass 2: Sparse Text Finder with Mode 11 on Adaptive Threshold
     # Discovers isolated numbers (12-digit Aadhaar UID, PAN, PIN codes) that Pass 1 missed
-    config_pass2 = r'--oem 3 --psm 11'
+    config_pass2 = f'--oem 1 --psm 11 -l {lang_flag}'
     raw_pass2 = pytesseract.image_to_string(adaptive_img, config=config_pass2).strip()
 
     # Combined text stream ensures no isolated field is omitted
     combined_raw = f"{raw_pass1}\n{raw_pass2}".strip()
 
+    # DPDP Act 2023 Statutory UID Masking: Scrub all raw 12-digit Aadhaar numbers from transcript
+    sanitized_raw = re.sub(
+        r'\b([2-9]\d{3})[\s\-]?(\d{4})[\s\-]?(\d{4})\b',
+        r'XXXX XXXX \3',
+        combined_raw
+    )
+
     # Calculate average confidence score using image_to_data
     try:
-        data = pytesseract.image_to_data(gray_img, output_type=pytesseract.Output.DICT)
+        data = pytesseract.image_to_data(gray_img, config=config_pass1, output_type=pytesseract.Output.DICT)
         confs = [int(c) for c in data["conf"] if str(c).isdigit() and int(c) >= 0]
         mean_conf = (sum(confs) / len(confs) / 100.0) if confs else 0.80
     except Exception:
@@ -520,12 +578,13 @@ def process_document_ocr(image_input: Any) -> OCRScanResponse:
                 doc_type = "PAN"
                 extracted = pan_try
 
+    # Enforce UIDAI Section 29 & DPDP Act 2023: id_number is permanently None in public output
     doc_data = ExtractedDocumentData(
         name=extracted.get("name"),
         dob=extracted.get("dob"),
         age=extracted.get("age"),
         gender=extracted.get("gender"),
-        id_number=extracted.get("id_number"),
+        id_number=None,
         masked_id_number=extracted.get("masked_id_number"),
         state=extracted.get("state"),
         residence="both",
@@ -533,7 +592,7 @@ def process_document_ocr(image_input: Any) -> OCRScanResponse:
     )
 
     # Dynamic confidence scoring based on completeness of identity fields
-    field_count = sum(1 for v in [doc_data.name, doc_data.dob, doc_data.gender, doc_data.id_number, doc_data.state] if v)
+    field_count = sum(1 for v in [doc_data.name, doc_data.dob, doc_data.gender, doc_data.masked_id_number, doc_data.state] if v)
     if field_count >= 4:
         confidence = min(0.99, max(0.90, mean_conf + 0.15))
     elif field_count >= 2:
@@ -554,13 +613,23 @@ def process_document_ocr(image_input: Any) -> OCRScanResponse:
         "occupation": None
     }
 
+    # Zeroize intermediate memory buffers (DPDP Act 2023 Compliance)
+    try:
+        del pil_img
+        del gray_img
+        del adaptive_img
+        import gc
+        gc.collect()
+    except Exception:
+        pass
+
     elapsed_ms = (time.perf_counter() - t0) * 1000
 
     return OCRScanResponse(
         document_type=doc_type,
         confidence_score=round(confidence, 2),
         extracted_data=doc_data,
-        raw_text=combined_raw,
+        raw_text=sanitized_raw,
         prefilled_profile=prefilled_profile,
         latency_ms=round(elapsed_ms, 2)
     )

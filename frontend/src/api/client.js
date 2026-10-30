@@ -1,67 +1,50 @@
 import axios from 'axios';
+import { supabase } from './supabase';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000,
+  timeout: 60000, // 60s timeout to gracefully absorb Render/Railway container cold starts
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor to attach authentication token
+// Request interceptor to attach official Supabase authentication token or dev demo
 apiClient.interceptors.request.use(
-  (config) => {
+  async (config) => {
     try {
-      const demoUser = localStorage.getItem('nagrikmitra_demo_user');
       let token = null;
 
-      // 1. Check for active demo user session
-      if (demoUser) {
+      // 1. Support local demo citizen switcher in development only
+      const demoUser = localStorage.getItem('nagrikmitra_demo_user');
+      if (demoUser && import.meta.env.DEV) {
         try {
-          const parsedUser = JSON.parse(demoUser);
-          const rbacRole = parsedUser?.user_metadata?.rbac_role || 
-            (parsedUser?.user_metadata?.role?.toLowerCase().includes('vle') || parsedUser?.id?.includes('vle') ? 'admin' : 'citizen');
-          token = rbacRole === 'admin' ? 'demo-session-vle' : 'demo-session-citizen';
+          const parsed = JSON.parse(demoUser);
+          const rbacRole = parsed?.user_metadata?.rbac_role || 
+            (parsed?.user_metadata?.role?.toLowerCase().includes('vle') || parsed?.id?.includes('vle') ? 'admin' : 'citizen');
+          token = `demo-session-${rbacRole}`;
         } catch {
           token = 'demo-session-token';
         }
       }
 
-      // 2. Check for Supabase session across all known storage keys (v1 and v2 sb-*-auth-token)
-      if (!token) {
+      // 2. Official Supabase Session Token (kills brittle localStorage loop)
+      if (!token && supabase) {
         try {
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && ((key.startsWith('sb-') && key.endsWith('-auth-token')) || key === 'supabase.auth.token')) {
-              const raw = localStorage.getItem(key);
-              if (raw) {
-                const parsed = JSON.parse(raw);
-                token = parsed?.access_token || parsed?.currentSession?.access_token;
-                if (token) break;
-              }
-            }
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.access_token) {
+            token = session.access_token;
           }
-        } catch {}
-      }
-
-      // 3. For administrative routes (/schemes/create, /schemes/sync-ogd),
-      // ensure administrative credentials so ingestion never fails due to role mismatch
-      const isAdminRoute = config.url && (
-        config.url.includes('/schemes/create') || 
-        config.url.includes('/schemes/sync-ogd')
-      );
-      if (isAdminRoute) {
-        if (!token || token === 'demo-session-citizen' || token === 'demo-session-token') {
-          token = 'demo-session-vle';
+        } catch (e) {
+          console.warn('Failed to retrieve Supabase session:', e);
         }
       }
 
-      if (!token) {
-        token = 'demo-session-citizen';
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
       }
-      config.headers.Authorization = `Bearer ${token}`;
     } catch (e) {
       // Storage access blocked or unavailable
     }
@@ -70,16 +53,31 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor for graceful error extraction and transient retry
+// Response interceptor with silent 401 token refresh & retry + transient error recovery
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const config = error.config;
-    // Retry once for transient 502/503/504 network dropouts
-    if (config && !config._retry && error.response && [502, 503, 504].includes(error.response.status)) {
-      config._retry = true;
+    const originalRequest = error.config;
+
+    // 1. Silent 401 Auto-Refresh: Session expired after 1 hr, refresh token and retry seamlessly
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && supabase) {
+      originalRequest._retry = true;
+      try {
+        const { data: { session }, error: refreshErr } = await supabase.auth.refreshSession();
+        if (session?.access_token && !refreshErr) {
+          originalRequest.headers.Authorization = `Bearer ${session.access_token}`;
+          return apiClient(originalRequest);
+        }
+      } catch (err) {
+        console.warn('Session silent refresh failed:', err);
+      }
+    }
+
+    // 2. Retry once for transient 502/503/504 network dropouts
+    if (originalRequest && !originalRequest._retry && error.response && [502, 503, 504].includes(error.response.status)) {
+      originalRequest._retry = true;
       await new Promise((res) => setTimeout(res, 800));
-      return apiClient(config);
+      return apiClient(originalRequest);
     }
 
     const errorMsg = error.response?.data?.detail || error.message || 'An unexpected error occurred';
@@ -212,17 +210,20 @@ export const extractDemographicSlots = async (text) => {
 };
 
 // OCR Scanning API calls
-export const scanDocumentFile = async (file) => {
+export const scanDocumentFile = async (file, consentAcknowledged = true) => {
   const formData = new FormData();
   formData.append('file', file);
-  const res = await apiClient.post('/ocr/scan-file', formData, {
+  const res = await apiClient.post(`/ocr/scan-file?consent_acknowledged=${consentAcknowledged}`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
   return res.data;
 };
 
-export const scanCameraFrame = async (imageBase64) => {
-  const res = await apiClient.post('/ocr/scan-frame', { image_base64: imageBase64 });
+export const scanCameraFrame = async (imageBase64, consentAcknowledged = true) => {
+  const res = await apiClient.post('/ocr/scan-frame', {
+    image_base64: imageBase64,
+    consent_acknowledged: consentAcknowledged
+  });
   return res.data;
 };
 

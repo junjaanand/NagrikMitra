@@ -4,49 +4,27 @@ from app.database.db import get_db
 from app.database.vector_store import (
     get_or_create_schemes_collection,
     add_schemes_to_vector_store,
-    query_similar_schemes
+    query_similar_schemes,
+    search_schemes_pgvector
 )
 from app.services.llm_client import llm_client
 from app.services.rule_engine import match_eligible_schemes
 from app.models.user import UserProfileInput
+from app.services.vernacular_normalizer import canonicalize_vernacular_query
 
 logger = logging.getLogger("NagrikMitra.RAG")
 
 def ensure_rag_index_populated(min_count: int = 50):
     """
-    Ensures that top high-impact and central schemes are vectorized into ChromaDB.
+    Ensures that Supabase pgvector contains indexed schemes.
+    All 4,728 schemes are vectorized directly in PostgreSQL 17 via HNSW.
     """
     col = get_or_create_schemes_collection("nagrikmitra_schemes")
     current_count = col.count()
-    
     if current_count < min_count:
-        logger.info(f"Populating ChromaDB RAG index (current: {current_count}, target: 100)...")
-        with get_db() as conn:
-            conn.row_factory = None
-            c = conn.cursor()
-            # Prioritize Central flagship schemes and top state schemes
-            c.execute("""
-                SELECT slug, name, state, category, benefits, eligibility_text, documents_required
-                FROM schemes
-                ORDER BY (CASE WHEN state = 'Central' THEN 1 ELSE 2 END), slug
-                LIMIT 150
-            """)
-            rows = c.fetchall()
-
-        schemes_to_index = []
-        for r in rows:
-            schemes_to_index.append({
-                "slug": r[0],
-                "name": r[1],
-                "state": r[2],
-                "category": r[3],
-                "benefits": r[4] or "",
-                "eligibility_text": r[5] or "",
-                "documents_required": r[6] or ""
-            })
-
-        added = add_schemes_to_vector_store(schemes_to_index)
-        logger.info(f"Indexed {added} schemes into ChromaDB RAG store.")
+        logger.warning(f"Supabase pgvector index has only {current_count} schemes (target >= {min_count}).")
+    else:
+        logger.debug(f"Supabase pgvector index verified with {current_count} active scheme embeddings.")
 
 LIVE_GAZETTE_REGISTRY = [
     {
@@ -148,44 +126,58 @@ def ground_with_web_search(query: str) -> Tuple[str, List[Dict[str, Any]]]:
 
     return "\n\n---\n\n".join(matched_entries), source_schemes
 
-def retrieve_scheme_context(query: str, n_results: int = 3) -> Tuple[str, List[Dict[str, Any]]]:
+def retrieve_scheme_context(
+    query: str,
+    n_results: int = 3,
+    filter_state: Optional[str] = None,
+    filter_gender: str = "all"
+) -> Tuple[str, List[Dict[str, Any]]]:
     """
-    Retrieves most relevant scheme documentation from ChromaDB vector store.
-    If no confident local vector matches exist or query mentions newly launched schemes,
+    Retrieves most relevant scheme documentation from Supabase pgvector store.
+    If no confident vector matches exist or query mentions newly launched schemes,
     augments with live web/gazette grounding.
     Returns:
       (context_text_block: str, source_metadata_list: List[Dict])
     """
     ensure_rag_index_populated()
     
-    docs = []
-    metas = []
-    distances = []
-    
-    try:
-        results = query_similar_schemes(query, n_results=n_results)
-        docs = results.get("documents", [[]])[0]
-        metas = results.get("metadatas", [[]])[0]
-        distances = results.get("distances", [[]])[0] if "distances" in results else []
-    except Exception as e:
-        logger.warning(f"ChromaDB retrieval error: {e}")
-
     context_snippets = []
     source_schemes = []
-
-    for doc, meta in zip(docs, metas):
-        context_snippets.append(doc)
-        source_schemes.append({
-            "name": meta.get("name", "Government Scheme"),
-            "state": meta.get("state", "Central"),
-            "category": meta.get("category", "Welfare"),
-            "slug": meta.get("slug", "")
-        })
+    
+    canonical_query = canonicalize_vernacular_query(query)
+    
+    try:
+        results = search_schemes_pgvector(
+            query=canonical_query,
+            n_results=n_results,
+            filter_state=filter_state,
+            filter_gender=filter_gender
+        )
+        for r in results:
+            doc_str = (
+                f"Scheme Name: {r['name']}\n"
+                f"State: {r['state']}\n"
+                f"Category: {r['category']}\n"
+                f"Benefits: {r['benefits']}\n"
+                f"Eligibility: {r['eligibility_text']}\n"
+                f"Documents: {r['documents_required']}"
+            )
+            context_snippets.append(doc_str)
+            source_schemes.append({
+                "name": r["name"],
+                "state": r["state"],
+                "category": r["category"],
+                "slug": r["slug"],
+                "similarity": r.get("similarity", 0.0),
+                "apply_url": r.get("apply_url", ""),
+                "official_url": r.get("official_url", "")
+            })
+    except Exception as e:
+        logger.warning(f"Supabase pgvector retrieval error: {e}")
 
     # Check if we should trigger Live Web Grounding fallback:
     # 1. Zero local results
-    # 2. Or high distance / low relevance
-    # 3. Or query explicitly matches high-priority newly gazetted schemes
+    # 2. Or query explicitly matches high-priority newly gazetted schemes
     q_lower = query.lower()
     gazette_hit = any(
         any(kw in q_lower for kw in item["keywords"])
@@ -212,15 +204,23 @@ def process_chat_with_rag(
 ) -> Dict[str, Any]:
     """
     End-to-end RAG and conversational pipeline:
-    1. Retrieve grounded scheme context from ChromaDB
+    1. Retrieve grounded scheme context from Supabase pgvector
     2. Query Multi-Tier LLM (Groq -> Gemini -> Fallback)
     3. Extract demographic slots from user message
     4. If profile attributes exist, invoke rule engine for deterministic recommendations
     """
     history = conversation_history or []
+    cur_prof = current_profile or {}
+    f_state = cur_prof.get("state")
+    f_gender = cur_prof.get("gender", "all")
     
-    # 1. Semantic RAG retrieval
-    context_text, source_schemes = retrieve_scheme_context(user_message, n_results=3)
+    # 1. Semantic RAG retrieval via Supabase pgvector
+    context_text, source_schemes = retrieve_scheme_context(
+        user_message,
+        n_results=3,
+        filter_state=f_state,
+        filter_gender=f_gender
+    )
 
     # 2. Prepare message window
     chat_messages = []

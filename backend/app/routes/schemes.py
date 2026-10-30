@@ -31,6 +31,7 @@ from app.services.link_resolver import (
     verify_and_resolve_scheme_link,
     record_broken_link_report
 )
+from app.services.vernacular_normalizer import canonicalize_vernacular_query
 
 router = APIRouter()
 
@@ -56,9 +57,21 @@ async def list_schemes(
     params = []
 
     if search:
-        search_term = f"%{search.strip()}%"
-        conditions.append("(name LIKE ? OR description LIKE ? OR benefits LIKE ? OR category LIKE ?)")
-        params.extend([search_term, search_term, search_term, search_term])
+        norm_search = canonicalize_vernacular_query(search.strip())
+        if norm_search != search.strip():
+            # Query contains Indic/Devanagari keywords expanded with canonical scheme titles
+            canonical_phrase = norm_search.replace(search.strip(), "").strip()
+            term_orig = f"%{search.strip()}%"
+            term_canon = f"%{canonical_phrase}%"
+            conditions.append(
+                "((name LIKE ? OR description LIKE ? OR benefits LIKE ? OR category LIKE ?) OR "
+                "(name LIKE ? OR description LIKE ? OR benefits LIKE ? OR category LIKE ?))"
+            )
+            params.extend([term_orig, term_orig, term_orig, term_orig, term_canon, term_canon, term_canon, term_canon])
+        else:
+            search_term = f"%{search.strip()}%"
+            conditions.append("(name LIKE ? OR description LIKE ? OR benefits LIKE ? OR category LIKE ?)")
+            params.extend([search_term, search_term, search_term, search_term])
 
     if state:
         if state.lower() == "central":
@@ -77,14 +90,18 @@ async def list_schemes(
 
     if bpl is not None:
         conditions.append("eligibility_bpl = ?")
-        params.append(1 if bpl else 0)
+        params.append(bool(bpl))
 
     if disability is not None:
         conditions.append("eligibility_disability = ?")
-        params.append(1 if disability else 0)
+        params.append(bool(disability))
 
     if mode and mode.lower() != "all":
-        conditions.append("classify_mode(application_process, apply_url) = ?")
+        from app.database.db import IS_POSTGRES
+        if IS_POSTGRES:
+            conditions.append("application_mode = ?")
+        else:
+            conditions.append("classify_mode(application_process, apply_url) = ?")
         params.append(mode.lower())
 
     where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
@@ -104,7 +121,8 @@ async def list_schemes(
         data_query = f"""
             SELECT slug, name, state, category, benefits, eligibility_gender, 
                    eligibility_income_max, eligibility_bpl, eligibility_disability,
-                   application_process, apply_url, description, eligibility_text
+                   application_process, apply_url, description, eligibility_text,
+                   lifecycle_status, successor_slug, successor_name
             FROM schemes
             {where_clause}
             {order_clause}
@@ -116,7 +134,9 @@ async def list_schemes(
     items = []
     for r in rows:
         app_mode = classify_application_mode(r[9], r[10])
-        life_status = classify_lifecycle_status(r[1] or "", r[11], r[12])
+        db_life_status = r[13] if len(r) > 13 and r[13] else classify_lifecycle_status(r[1] or "", r[11], r[12])
+        succ_slug = r[14] if len(r) > 14 else None
+        succ_name = r[15] if len(r) > 15 else None
         items.append(SchemeListItem(
             slug=r[0],
             name=r[1],
@@ -128,7 +148,9 @@ async def list_schemes(
             eligibility_bpl=bool(r[7]),
             eligibility_disability=bool(r[8]),
             application_mode=app_mode,
-            lifecycle_status=life_status
+            lifecycle_status=db_life_status,
+            successor_slug=succ_slug,
+            successor_name=succ_name
         ))
 
     total_pages = math.ceil(total_count / page_size) if total_count > 0 else 1
@@ -158,10 +180,10 @@ async def get_global_stats():
         c.execute("SELECT COUNT(*) FROM schemes WHERE eligibility_gender = 'female'")
         women = c.fetchone()[0]
         
-        c.execute("SELECT COUNT(*) FROM schemes WHERE eligibility_bpl = 1")
+        c.execute("SELECT COUNT(*) FROM schemes WHERE eligibility_bpl IS TRUE")
         bpl = c.fetchone()[0]
         
-        c.execute("SELECT COUNT(*) FROM schemes WHERE eligibility_disability = 1")
+        c.execute("SELECT COUNT(*) FROM schemes WHERE eligibility_disability IS TRUE")
         disability = c.fetchone()[0]
         
         c.execute("SELECT COUNT(DISTINCT category) FROM schemes")
@@ -346,9 +368,9 @@ async def get_analytics_data():
         # 6. Target demographics
         c.execute("SELECT COUNT(*) FROM schemes WHERE eligibility_gender = 'female'")
         women = c.fetchone()[0]
-        c.execute("SELECT COUNT(*) FROM schemes WHERE eligibility_bpl = 1")
+        c.execute("SELECT COUNT(*) FROM schemes WHERE eligibility_bpl IS TRUE")
         bpl = c.fetchone()[0]
-        c.execute("SELECT COUNT(*) FROM schemes WHERE eligibility_disability = 1")
+        c.execute("SELECT COUNT(*) FROM schemes WHERE eligibility_disability IS TRUE")
         pwd = c.fetchone()[0]
         c.execute("SELECT COUNT(*) FROM schemes WHERE state = 'Central'")
         central = c.fetchone()[0]
@@ -381,7 +403,9 @@ async def get_scheme_by_slug(slug: str):
                    documents_required, apply_url, official_url, eligibility_age_min,
                    eligibility_age_max, eligibility_gender, eligibility_caste,
                    eligibility_income_max, eligibility_residence, eligibility_state,
-                   eligibility_disability, eligibility_bpl, scraped_at
+                   eligibility_disability, eligibility_bpl, scraped_at,
+                   lifecycle_status, successor_slug, successor_name, merger_notice,
+                   last_audited_at
             FROM schemes
             WHERE slug = ?
         """, (slug,))
@@ -394,7 +418,11 @@ async def get_scheme_by_slug(slug: str):
     caste_list = parse_json_list(row[17])
     state_list = parse_json_list(row[20])
     app_mode = classify_application_mode(row[10], row[12])
-    life_status = classify_lifecycle_status(row[1] or "", row[2], row[9])
+    db_life_status = row[24] if len(row) > 24 and row[24] else classify_lifecycle_status(row[1] or "", row[2], row[9])
+    succ_slug = row[25] if len(row) > 25 else None
+    succ_name = row[26] if len(row) > 26 else None
+    m_notice = row[27] if len(row) > 27 else None
+    last_audit = str(row[28]) if len(row) > 28 and row[28] is not None else None
 
     return SchemeDetail(
         slug=row[0],
@@ -420,12 +448,16 @@ async def get_scheme_by_slug(slug: str):
         eligibility_state=row[20],
         eligibility_disability=bool(row[21]),
         eligibility_bpl=bool(row[22]),
-        scraped_at=row[23],
+        scraped_at=str(row[23]) if row[23] is not None else None,
         caste_list=caste_list,
         state_list=state_list,
         estimated_benefit_amount=benefit_amount,
         application_mode=app_mode,
-        lifecycle_status=life_status
+        lifecycle_status=db_life_status,
+        successor_slug=succ_slug,
+        successor_name=succ_name,
+        merger_notice=m_notice,
+        last_audited_at=last_audit
     )
 
 @router.post("/{slug}/resolve-link", response_model=LinkResolveResponse)
@@ -482,16 +514,24 @@ async def report_broken_link(slug: str, request: LinkReportRequest = LinkReportR
 @router.get("/meta/modes")
 async def get_application_modes_breakdown():
     """Returns the distribution of schemes by application mode (online, offline, hybrid)."""
+    from app.database.db import IS_POSTGRES
+    counts = {"online": 0, "offline": 0, "hybrid": 0}
+
     with get_db() as conn:
         c = conn.cursor()
-        c.execute("SELECT application_process, apply_url FROM schemes")
-        rows = c.fetchall()
+        if IS_POSTGRES:
+            c.execute("SELECT application_mode, COUNT(*) FROM schemes GROUP BY application_mode")
+            for mode_val, cnt in c.fetchall():
+                if mode_val in counts:
+                    counts[mode_val] = cnt
+            total = sum(counts.values())
+        else:
+            c.execute("SELECT application_process, apply_url FROM schemes")
+            rows = c.fetchall()
+            for r in rows:
+                counts[classify_application_mode(r[0], r[1])] += 1
+            total = len(rows)
 
-    counts = {"online": 0, "offline": 0, "hybrid": 0}
-    for r in rows:
-        counts[classify_application_mode(r[0], r[1])] += 1
-
-    total = len(rows)
     return {
         "total": total,
         "online_portal_schemes": counts["online"],
@@ -565,8 +605,8 @@ async def create_scheme(
             request.eligibility_income_max,
             request.eligibility_residence,
             elig_state,
-            1 if request.eligibility_disability else 0,
-            1 if request.eligibility_bpl else 0,
+            bool(request.eligibility_disability),
+            bool(request.eligibility_bpl),
             now_iso
         ))
         conn.commit()

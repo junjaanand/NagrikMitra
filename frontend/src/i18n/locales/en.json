@@ -1,0 +1,75 @@
+{
+  "nav": {
+    "brand_title": "NagrikMitra",
+    "brand_subtitle": "Government Scheme Intelligence",
+    "how_it_works": "How It Works",
+    "features": "Features",
+    "live_impact": "Live Impact",
+    "mission": "Mission",
+    "tech_stack": "Tech Stack",
+    "team": "Team",
+    "dev_view": "Architecture View",
+    "citizen_view": "Citizen View",
+    "dashboard": "Dashboard",
+    "admin_portal": "Admin Portal",
+    "sign_in": "Sign In",
+    "sign_out": "Sign Out"
+  },
+  "hero": {
+    "badge": "AI-Powered Citizen Services Navigator",
+    "title_prefix": "Discover Welfare Schemes,",
+    "title_highlight": "Directly in Your Hands.",
+    "subtitle": "Zero middlemen. Discover verified Central and State welfare programs tailored to your family in 4 taps or by voice.",
+    "voice_search_cta": "Voice Search Schemes",
+    "quick_match_cta": "Check Eligibility (4 Taps)",
+    "scan_id_cta": "Scan Card (Private)"
+  },
+  "picker": {
+    "title": "Find Schemes in 4 Taps (No Typing Required)",
+    "subtitle": "Select your profile visually and get immediate matched government welfare benefits.",
+    "step1_title": "1. Your Role / Occupation",
+    "step1_subtitle": "Tap 1 of 4",
+    "step2_title": "2. Your State / Domicile",
+    "step2_subtitle": "Tap 2 of 4",
+    "step3_title": "3. Ration Card Color (Income Proxy)",
+    "step3_subtitle": "Tap 3 of 4",
+    "step3_desc": "Automatic BPL & income limit calculation without salary slips:",
+    "step4_title": "4. Social Category",
+    "step4_subtitle": "Tap 4 of 4",
+    "find_schemes_btn": "Find My Schemes",
+    "selected_label": "Selected:"
+  },
+  "roles": {
+    "farmer": "Farmer / Kisan",
+    "student": "Student",
+    "woman": "Woman / Homemaker",
+    "artisan": "Artisan / Craftsman",
+    "senior": "Senior Citizen",
+    "youth": "Unemployed Youth"
+  },
+  "card": {
+    "central_govt": "Central Govt",
+    "online": "Online",
+    "in_person": "In-Person",
+    "csc_hybrid": "CSC Hybrid",
+    "upgraded": "Upgraded",
+    "near_match": "Near-Match",
+    "guidelines_btn": "Guidelines",
+    "listen_btn": "Listen",
+    "stop_btn": "Stop",
+    "slip_btn": "Slip",
+    "apply_btn": "Apply"
+  },
+  "dossier": {
+    "benefit_label": "Estimated Benefit Amount",
+    "documents_heading": "Mandatory Documents Checklist",
+    "where_to_apply": "Where & How to Apply",
+    "step_csc": "Visit nearest Common Service Center (CSC) or Gram Panchayat",
+    "step_online": "Apply online at official government portal",
+    "listen_btn": "Listen",
+    "save_slip_btn": "Download Slip",
+    "share_whatsapp": "WhatsApp",
+    "apply_online_btn": "Open Application Portal",
+    "report_broken_link": "Report Broken Link"
+  }
+}

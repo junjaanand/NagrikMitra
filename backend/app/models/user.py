@@ -12,6 +12,8 @@ class UserProfileInput(BaseModel):
     is_bpl: bool = Field(default=False, description="Whether Below Poverty Line")
     has_disability: bool = Field(default=False, description="Whether person has disability")
     occupation: Optional[str] = Field(default=None, description="Occupation (e.g. farmer, student, artisan)")
+    ration_card_color: Optional[str] = Field(default=None, description="yellow, orange, white, or none")
+    is_widow: bool = Field(default=False, description="Whether citizen is a widow or single mother")
 
 class MatchedSchemeResult(BaseModel):
     slug: str
@@ -27,6 +29,16 @@ class MatchedSchemeResult(BaseModel):
     estimated_benefit_amount: Optional[str] = None
     application_mode: Optional[str] = "online"
     lifecycle_status: Optional[str] = "active"
+    
+    # Phase 04: Two-Stage Funnel Attributes
+    eligibility_tier: int = 1  # 1 = 100% Direct Match, 2 = Near-Match / Action Required
+    missing_criteria: List[str] = []
+    micro_conditions: List[Dict[str, Any]] = []
+    actionable_guidance: Optional[str] = None
+    
+    # Phase 05: Umbrella Successor Attributes
+    successor_slug: Optional[str] = None
+    successor_name: Optional[str] = None
 
 class EligibilityMatchResponse(BaseModel):
     total_matched: int

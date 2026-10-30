@@ -1,10 +1,17 @@
 import sys
 import os
 import time
-from fastapi.testclient import TestClient
 
-# Ensure backend root is on sys.path
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+except Exception:
+    pass
+
+# Ensure backend root is on sys.path and load environment
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from dotenv import load_dotenv
+load_dotenv(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env")))
+from fastapi.testclient import TestClient
 
 from app.main import app
 from app.services.rag_pipeline import retrieve_scheme_context, process_chat_with_rag, ensure_rag_index_populated

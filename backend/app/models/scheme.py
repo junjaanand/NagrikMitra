@@ -29,6 +29,10 @@ class SchemeBase(BaseModel):
     application_mode: Optional[str] = "online"
     lifecycle_status: Optional[str] = "active"
     link_status: Optional[str] = "verified"
+    successor_slug: Optional[str] = None
+    successor_name: Optional[str] = None
+    merger_notice: Optional[str] = None
+    last_audited_at: Optional[str] = None
 
 class SchemeDetail(SchemeBase):
     caste_list: List[str] = []
@@ -48,6 +52,8 @@ class SchemeListItem(BaseModel):
     eligibility_disability: Optional[bool] = False
     application_mode: Optional[str] = "online"
     lifecycle_status: Optional[str] = "active"
+    successor_slug: Optional[str] = None
+    successor_name: Optional[str] = None
 
 class PaginatedSchemesResponse(BaseModel):
     items: List[SchemeListItem]

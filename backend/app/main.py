@@ -32,13 +32,20 @@ app = FastAPI(
     debug=settings.DEBUG
 )
 
-# Production-hardened CORS middleware
+# Production-hardened dynamic CORS middleware (permits Vercel deployments and custom origins)
+import os
+cors_origins = list(settings.CORS_ORIGINS)
+custom_origins = os.getenv("ADDITIONAL_CORS_ORIGINS", "")
+if custom_origins:
+    cors_origins.extend([o.strip() for o in custom_origins.split(",") if o.strip()])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=cors_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",  # Automatically permit all Vercel edge preview & production deployments
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
+    allow_headers=["*"],
 )
 
 # Global unhandled exception handler to prevent traceback leakage

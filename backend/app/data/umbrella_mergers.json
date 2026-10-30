@@ -1,0 +1,92 @@
+{
+  "indira-awas-yojana": {
+    "legacy_name": "Indira Awas Yojana (IAY)",
+    "successor_slug": "pmay-g",
+    "successor_name": "Pradhan Mantri Awaas Yojana - Gramin (PMAY-G)",
+    "year_subsumed": 2016,
+    "notice": "Indira Awas Yojana (IAY) was restructured and upgraded into PMAY-G in 2016. Financial assistance was enhanced up to ₹1.20 Lakh in plain areas and ₹1.30 Lakh in hilly/difficult regions, with Direct Benefit Transfer (DBT) directly into Aadhaar-linked bank accounts.",
+    "category": "Housing & Shelter",
+    "state": "Central"
+  },
+  "nirmal-bharat-abhiyan": {
+    "legacy_name": "Nirmal Bharat Abhiyan (NBA)",
+    "successor_slug": "sbm-g-i",
+    "successor_name": "Swachh Bharat Mission - Grameen (SBM-G)",
+    "year_subsumed": 2014,
+    "notice": "Nirmal Bharat Abhiyan was restructured into the nationwide Swachh Bharat Mission (Grameen) in 2014, providing ₹12,000 financial incentive for individual household latrines (IHHL).",
+    "category": "Utility & Sanitation",
+    "state": "Central"
+  },
+  "rajiv-gandhi-scheme-for-empowerment-of-adolescent-girls-sabla": {
+    "legacy_name": "Rajiv Gandhi Scheme for Empowerment of Adolescent Girls (SABLA)",
+    "successor_slug": "sag",
+    "successor_name": "Scheme For Adolescent Girls (Mission Shakti - SAMBAL)",
+    "year_subsumed": 2022,
+    "notice": "SABLA has been restructured and integrated under the comprehensive Mission Shakti (SAMBAL) framework as the Scheme for Adolescent Girls (SAG), focusing on nutrition, iron supplements, and vocational life-skills.",
+    "category": "Women and Child",
+    "state": "Central"
+  },
+  "national-optical-fibre-network": {
+    "legacy_name": "National Optical Fibre Network (NOFN)",
+    "successor_slug": "bharatnet-project",
+    "successor_name": "BharatNet Project (Digital India)",
+    "year_subsumed": 2015,
+    "notice": "NOFN was rebranded and significantly expanded as BharatNet under Digital India, delivering 100 Mbps broadband connectivity to all 2.5 Lakh Gram Panchayats across India.",
+    "category": "Science, IT & Communications",
+    "state": "Central"
+  },
+  "rajiv-gandhi-grameen-vidyutikaran-yojana": {
+    "legacy_name": "Rajiv Gandhi Grameen Vidyutikaran Yojana (RGGVY)",
+    "successor_slug": "deendayal-upadhyaya-gram-jyoti-yojana",
+    "successor_name": "Deen Dayal Upadhyaya Gram Jyoti Yojana (DDUGJY)",
+    "year_subsumed": 2014,
+    "notice": "RGGVY was subsumed into DDUGJY to ensure 24x7 power supply to rural households and feeder separation for agricultural and non-agricultural rural consumers.",
+    "category": "Electricity & Energy",
+    "state": "Central"
+  },
+  "swarnajayanti-gram-swarozgar-yojana": {
+    "legacy_name": "Swarnajayanti Gram Swarozgar Yojana (SGSY)",
+    "successor_slug": "deendayal-antyodaya-yojana-nrlm",
+    "successor_name": "Deendayal Antyodaya Yojana - National Rural Livelihoods Mission (DAY-NRLM)",
+    "year_subsumed": 2011,
+    "notice": "SGSY was restructured into DAY-NRLM (Aajeevika) to organize rural poor women into Self Help Groups (SHGs) and provide continuous revolving funds and credit linkage.",
+    "category": "Skills & Employment",
+    "state": "Central"
+  },
+  "swarna-jayanti-shahari-rozgar-yojana": {
+    "legacy_name": "Swarna Jayanti Shahari Rozgar Yojana (SJSRY)",
+    "successor_slug": "deendayal-antyodaya-yojana-nulm",
+    "successor_name": "Deendayal Antyodaya Yojana - National Urban Livelihoods Mission (DAY-NULM)",
+    "year_subsumed": 2013,
+    "notice": "SJSRY was restructured into DAY-NULM to address urban poverty, skill development, micro-enterprise credit, and shelters for urban homeless.",
+    "category": "Skills & Employment",
+    "state": "Central"
+  },
+  "jawaharlal-nehru-national-urban-renewal-mission": {
+    "legacy_name": "Jawaharlal Nehru National Urban Renewal Mission (JnNURM)",
+    "successor_slug": "amrut-mission",
+    "successor_name": "Atal Mission for Rejuvenation and Urban Transformation (AMRUT 2.0)",
+    "year_subsumed": 2015,
+    "notice": "JnNURM was succeeded by AMRUT to establish universal tap water coverage, sewerage management, and stormwater drainage in 500 major cities.",
+    "category": "Urban Development",
+    "state": "Central"
+  },
+  "rashtriya-swasthya-bima-yojana": {
+    "legacy_name": "Rashtriya Swasthya Bima Yojana (RSBY)",
+    "successor_slug": "ayushman-bharat-pm-jay",
+    "successor_name": "Ayushman Bharat - Pradhan Mantri Jan Arogya Yojana (PM-JAY)",
+    "year_subsumed": 2018,
+    "notice": "RSBY (which offered ₹30,000 coverage) was superseded by Ayushman Bharat PM-JAY, offering ₹5 Lakh per family per year for secondary and tertiary care hospitalization to over 12 crore poor families.",
+    "category": "Health & Wellness",
+    "state": "Central"
+  },
+  "national-agricultural-insurance-scheme": {
+    "legacy_name": "National Agricultural Insurance Scheme (NAIS)",
+    "successor_slug": "pradhan-mantri-fasal-bima-yojana-pmfby",
+    "successor_name": "Pradhan Mantri Fasal Bima Yojana (PMFBY)",
+    "year_subsumed": 2016,
+    "notice": "NAIS and Modified NAIS were replaced by PMFBY, establishing uniform low farmer premiums (2% for Kharif, 1.5% for Rabi, 5% for commercial crops) with full non-capped sum insured coverage.",
+    "category": "Agriculture,Rural & Environment",
+    "state": "Central"
+  }
+}

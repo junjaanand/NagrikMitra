@@ -1,8 +1,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Sparkles, CheckCircle2, Mic, Camera, ArrowRight, Shield, Award } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export default function HeroSection({ onCheckEligibility, onOpenChat, onOpenScanner }) {
+  const { t } = useTranslation();
   return (
     <section className="relative pt-32 pb-20 md:pt-40 md:pb-28 overflow-hidden">
       {/* Subtle Background Glows */}
@@ -25,9 +27,9 @@ export default function HeroSection({ onCheckEligibility, onOpenChat, onOpenScan
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span>🇮🇳 Digital India Welfare Engine</span>
+              <span>🇮🇳 {t('hero.badge', 'Digital India Welfare Engine')}</span>
               <span className="text-slate-300">•</span>
-              <span className="text-emerald-700 font-bold">4,693 Verified Schemes</span>
+              <span className="text-emerald-700 font-bold">4,728 Verified Schemes</span>
             </motion.div>
 
             {/* Main Headline */}
@@ -37,9 +39,9 @@ export default function HeroSection({ onCheckEligibility, onOpenChat, onOpenScan
               transition={{ duration: 0.6, delay: 0.1 }}
               className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 tracking-tight leading-[1.15]"
             >
-              Discover Government Schemes{' '}
+              {t('hero.title_prefix', 'Discover Government Schemes')}{' '}
               <span className="bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-800 bg-clip-text text-transparent">
-                You Truly Deserve.
+                {t('hero.title_highlight', 'You Truly Deserve.')}
               </span>
             </motion.h1>
 
@@ -50,9 +52,7 @@ export default function HeroSection({ onCheckEligibility, onOpenChat, onOpenScan
               transition={{ duration: 0.6, delay: 0.2 }}
               className="text-base sm:text-lg text-slate-600 leading-relaxed max-w-2xl"
             >
-              India offers over 4,700 central and state welfare programs. NagrikMitra's deterministic
-              AI rule engine evaluates your age, income, caste, state, and occupation in under 60ms—with
-              <strong className="text-slate-800 font-semibold"> zero hallucinations</strong>, bilingual voice assistance in Hindi & English, and live document scanning.
+              {t('hero.subtitle', "India offers over 4,700 central and state welfare programs. NagrikMitra's deterministic AI rule engine evaluates your age, income, caste, state, and occupation in under 60ms—with zero hallucinations, bilingual voice assistance in Hindi & English, and live document scanning.")}
             </motion.p>
 
             {/* Action Buttons */}
@@ -67,7 +67,7 @@ export default function HeroSection({ onCheckEligibility, onOpenChat, onOpenScan
                 onClick={onCheckEligibility}
                 className="flex items-center gap-2.5 px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-base shadow-md shadow-emerald-600/25 hover:shadow-lg hover:shadow-emerald-600/35 hover:-translate-y-0.5 transition-all cursor-pointer"
               >
-                <span>Check Your Eligibility</span>
+                <span>{t('hero.quick_match_cta', 'Check Your Eligibility (4 Taps)')}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
 
@@ -77,7 +77,7 @@ export default function HeroSection({ onCheckEligibility, onOpenChat, onOpenScan
                 className="flex items-center gap-2 px-5 py-3.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 font-semibold text-sm shadow-xs hover:shadow-sm hover:-translate-y-0.5 transition-all cursor-pointer"
               >
                 <Mic className="w-4 h-4 text-rose-500 animate-pulse" />
-                <span>हिंदी में पूछें (Voice Chat)</span>
+                <span>{t('hero.voice_search_cta', 'हिंदी में पूछें (Voice Chat)')}</span>
               </button>
 
               {/* Camera OCR CTA */}
@@ -87,7 +87,7 @@ export default function HeroSection({ onCheckEligibility, onOpenChat, onOpenScan
                 title="Scan Aadhaar or PAN card"
               >
                 <Camera className="w-4 h-4 text-slate-600" />
-                <span>Scan ID Card</span>
+                <span>{t('hero.scan_id_cta', 'Scan Card (Private)')}</span>
               </button>
             </motion.div>
 

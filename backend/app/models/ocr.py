@@ -6,8 +6,9 @@ class ExtractedDocumentData(BaseModel):
     dob: Optional[str] = Field(None, description="Date of birth in DD/MM/YYYY format")
     age: Optional[int] = Field(None, description="Computed age in years")
     gender: Optional[str] = Field(None, description="male, female, or other")
-    id_number: Optional[str] = Field(None, description="Full extracted document number")
-    masked_id_number: Optional[str] = Field(None, description="Privacy-masked ID number (e.g. XXXX XXXX 1234)")
+    # id_number is permanently redacted to prevent statutory Aadhaar Act Section 29 violations
+    id_number: Optional[str] = Field(None, description="Forbidden under Section 29 - always None")
+    masked_id_number: Optional[str] = Field(None, description="Statutory masked ID (e.g. XXXX XXXX 1234)")
     state: Optional[str] = Field(None, description="Detected state of residence")
     residence: Optional[str] = Field("both", description="rural, urban, or both")
     is_bpl: Optional[bool] = Field(False, description="Detected BPL indicator")
@@ -22,6 +23,7 @@ class OCRScanResponse(BaseModel):
 
 class CameraFrameScanRequest(BaseModel):
     image_base64: str = Field(..., min_length=10, description="Base64 encoded image string (data:image/jpeg;base64,... or raw base64)")
+    consent_acknowledged: bool = Field(True, description="Affirmative DPDP Act consent checkpoint")
 
 class SupportedDocInfo(BaseModel):
     doc_type: str
