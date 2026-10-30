@@ -52,11 +52,16 @@ app.add_middleware(
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled error processing {request.method} {request.url.path}: {exc}", exc_info=True)
+    req_origin = request.headers.get("origin", "*")
     return JSONResponse(
         status_code=500,
         content={
-            "detail": "An internal server error occurred while processing your request. Please try again later.",
+            "detail": str(exc) if settings.DEBUG else "An internal server error occurred while processing your request. Please try again later.",
             "path": request.url.path
+        },
+        headers={
+            "Access-Control-Allow-Origin": req_origin,
+            "Access-Control-Allow-Credentials": "true"
         }
     )
 

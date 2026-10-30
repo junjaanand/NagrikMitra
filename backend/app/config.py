@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "NagrikMitra"
     ENVIRONMENT: str = "development"
     DEBUG: bool = False
-    DATABASE_URL: str = "sqlite:///./data/nagrikmitra.db"
+    DATABASE_URL: str = "postgresql://postgres:3kU9JGriasO36Uhl@db.xgddzjmnonafijgxmefz.supabase.co:5432/postgres"
     CHROMA_PERSIST_DIR: str = "./data/chroma_db"
     
     # Authorized CORS origins for production and development
@@ -20,11 +20,11 @@ class Settings(BaseSettings):
     ]
     
     # Supabase Cloud & Authentication
-    SUPABASE_URL: Optional[str] = None
-    SUPABASE_JWT_SECRET: Optional[str] = None
+    SUPABASE_URL: Optional[str] = "https://xgddzjmnonafijgxmefz.supabase.co"
+    SUPABASE_JWT_SECRET: Optional[str] = "69P6LSg8munHOvwNi3adYMXbPwBgNx+N2YBv/dP8ZhFhjbucDkac3FAiXe4/PdWkDzGKEiZyXv8L9u74+raD1Q=="
 
     # LLM Provider Configuration with Fallback Hierarchy
-    PRIMARY_LLM_PROVIDER: str = "groq"  # "groq" -> "gemini" -> "local"
+    PRIMARY_LLM_PROVIDER: str = "gemini"  # "groq" -> "gemini" -> "local"
     GROQ_API_KEY: Optional[str] = None
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
     GROQ_FALLBACK_MODEL: str = "llama-3.1-8b-instant"
