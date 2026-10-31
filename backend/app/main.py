@@ -42,7 +42,7 @@ if custom_origins:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
-    allow_origin_regex=r"https://.*\.vercel\.app",  # Automatically permit all Vercel edge preview & production deployments
+    allow_origin_regex=r"https?://.*",  # Permissive regex: matches all Vercel, Render, Netlify & local origins
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],

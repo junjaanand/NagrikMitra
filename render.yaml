@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: nagrikmitra-backend
+    runtime: docker
+    rootDir: backend
+    plan: free
+    region: singapore
+    healthCheckPath: /api/schemes/meta/stats
+    envVars:
+      - key: DATABASE_URL
+        value: postgresql://postgres:3kU9JGriasO36Uhl@db.xgddzjmnonafijgxmefz.supabase.co:5432/postgres
+      - key: SUPABASE_URL
+        value: https://xgddzjmnonafijgxmefz.supabase.co
+      - key: SUPABASE_JWT_SECRET
+        value: 69P6LSg8munHOvwNi3adYMXbPwBgNx+N2YBv/dP8ZhFhjbucDkac3FAiXe4/PdWkDzGKEiZyXv8L9u74+raD1Q==
+      - key: ENVIRONMENT
+        value: production
+      - key: PRIMARY_LLM_PROVIDER
+        value: gemini
+
+  - type: web
+    name: nagrikmitra-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    pullRequestPreviewsEnabled: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+    envVars:
+      - key: VITE_API_URL
+        value: https://nagrikmitra-x6y5.onrender.com/api
+      - key: VITE_SUPABASE_URL
+        value: https://xgddzjmnonafijgxmefz.supabase.co
+      - key: VITE_SUPABASE_ANON_KEY
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhnZGR6am1ub25hZmlqZ3htZWZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0NDM1NDcsImV4cCI6MjEwNzAxOTU0N30.qVKEi_hnqfrLcySCaBEV-BnmpPyw6bTS34gvDUbEAfI

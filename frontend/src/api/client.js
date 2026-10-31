@@ -5,7 +5,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 60000, // 60s timeout to gracefully absorb Render/Railway container cold starts
+  timeout: 90000, // 90s timeout to absorb Render container cold starts seamlessly
   headers: {
     'Content-Type': 'application/json',
   },
@@ -73,11 +73,18 @@ apiClient.interceptors.response.use(
       }
     }
 
-    // 2. Retry once for transient 502/503/504 network dropouts
-    if (originalRequest && !originalRequest._retry && error.response && [502, 503, 504].includes(error.response.status)) {
-      originalRequest._retry = true;
-      await new Promise((res) => setTimeout(res, 800));
-      return apiClient(originalRequest);
+    // 2. Retry up to 3 times for transient 502/503/504 or network/timeout dropouts during Render cold start
+    const isNetworkOrTimeout = !error.response && (error.code === 'ECONNABORTED' || error.message?.includes('Network Error') || error.code === 'ERR_NETWORK');
+    const isTransientStatus = error.response && [502, 503, 504].includes(error.response.status);
+
+    if (originalRequest && (isNetworkOrTimeout || isTransientStatus)) {
+      originalRequest._retryCount = (originalRequest._retryCount || 0) + 1;
+      if (originalRequest._retryCount <= 3) {
+        const delay = originalRequest._retryCount * 1500;
+        console.warn(`Render server waking up. Retrying request (${originalRequest._retryCount}/3) in ${delay}ms...`);
+        await new Promise((res) => setTimeout(res, delay));
+        return apiClient(originalRequest);
+      }
     }
 
     const errorMsg = error.response?.data?.detail || error.message || 'An unexpected error occurred';
