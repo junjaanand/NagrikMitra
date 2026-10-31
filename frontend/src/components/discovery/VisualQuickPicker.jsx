@@ -23,25 +23,39 @@ export default function VisualQuickPicker({ onComplete, initialProfile = {} }) {
   const [selectedRation, setSelectedRation] = useState(initialProfile.ration_card_color || 'yellow');
   const [selectedCaste, setSelectedCaste] = useState(initialProfile.caste_category || 'General');
 
-  const handleSearch = () => {
+  const triggerSearchForRole = (roleId = selectedRole) => {
+    setSelectedRole(roleId);
     const rationData = RATION_CARD_PROXY[selectedRation] || RATION_CARD_PROXY.none;
 
+    const roleToOcc = {
+      farmer: 'farmer',
+      student: 'student',
+      woman: 'other',
+      artisan: 'artisan',
+      senior: 'other',
+      youth: 'unemployed'
+    };
+
     const payload = {
-      occupation: selectedRole,
+      occupation: roleToOcc[roleId] || roleId,
       state: selectedState,
       caste_category: selectedCaste,
       ration_card_color: selectedRation,
       annual_income: rationData.annual_income,
       is_bpl: rationData.is_bpl,
-      gender: selectedRole === 'woman' ? 'female' : 'all',
-      age: selectedRole === 'student' ? 21 : selectedRole === 'senior' ? 65 : 35,
-      residence: 'both',
+      gender: roleId === 'woman' ? 'female' : 'all',
+      age: roleId === 'student' ? 21 : roleId === 'senior' ? 65 : 35,
+      residence: 'rural',
       has_disability: false,
     };
 
     if (onComplete) {
       onComplete(payload);
     }
+  };
+
+  const handleSearch = () => {
+    triggerSearchForRole(selectedRole);
   };
 
   return (
@@ -80,22 +94,47 @@ export default function VisualQuickPicker({ onComplete, initialProfile = {} }) {
             {POPULAR_ROLES.map((role) => {
               const isSelected = selectedRole === role.id;
               return (
-                <button
+                <div
                   key={role.id}
-                  type="button"
                   onClick={() => setSelectedRole(role.id)}
-                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between h-24 ${
+                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between min-h-[115px] relative group ${
                     isSelected
-                      ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20 text-emerald-950 shadow-xs'
-                      : 'bg-slate-50/70 border-slate-200/80 hover:bg-slate-100 text-slate-700'
+                      ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/25 text-emerald-950 shadow-sm'
+                      : 'bg-slate-50/70 border-slate-200/80 hover:bg-slate-100 hover:border-slate-300 text-slate-700'
                   }`}
                 >
-                  <span className="text-2xl">{role.icon}</span>
-                  <div>
-                    <div className="text-xs font-bold leading-tight">{role.label}</div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-2xl">{role.icon}</span>
+                    {isSelected && (
+                      <span className="px-1.5 py-0.5 rounded-full bg-emerald-600 text-[10px] font-black text-white flex items-center gap-0.5">
+                        <CheckCircle2 className="w-2.5 h-2.5" />
+                        <span>चयनित</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="my-1">
+                    <div className="text-xs font-extrabold leading-tight">{role.label}</div>
                     <div className="text-[10px] text-slate-500 font-medium truncate">{role.hindi}</div>
                   </div>
-                </button>
+
+                  {/* Instant 1-Tap Search Button on each card */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      triggerSearchForRole(role.id);
+                    }}
+                    className={`mt-1 w-full py-1.5 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
+                        : 'bg-white hover:bg-emerald-50 text-emerald-700 border border-slate-200 group-hover:border-emerald-300'
+                    }`}
+                  >
+                    <span>योजनाएं देखें</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
               );
             })}
           </div>
