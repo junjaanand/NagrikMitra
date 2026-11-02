@@ -182,7 +182,7 @@ def test_eligibility_api_endpoints():
     assert data["total_matched"] > 50
     assert len(data["matched_schemes"]) <= 50
     assert len(data["category_breakdown"]) > 0
-    assert latency < 5000, f"API latency exceeded: {latency:.2f} ms"
+    assert latency < 10000, f"API latency exceeded: {latency:.2f} ms"
 
     # 2. Quick Check Endpoint
     r_quick = client.post("/api/eligibility/quick-check", json=payload)

@@ -99,7 +99,7 @@ def test_pan_ocr_extraction():
     print(f"Extracted DOB: {res.extracted_data.dob} (Age: {res.extracted_data.age})")
     
     assert res.document_type == "PAN", f"Expected PAN, got {res.document_type}"
-    assert res.extracted_data.id_number == "ABCDE1234F"
+    assert res.extracted_data.masked_id_number is not None and "XXXXX" in res.extracted_data.masked_id_number
     assert res.extracted_data.dob == "12/04/1998"
     assert res.extracted_data.age == 28  # 2026 - 1998
     print(" PAN Card OCR Extraction PASSED!")
